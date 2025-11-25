@@ -636,10 +636,19 @@ def _build_prompt_context(
                 ).first()
 
                 if wallet:
+                    # Decrypt private key
+                    from utils.encryption import decrypt_private_key
+                    try:
+                        private_key = decrypt_private_key(wallet.private_key_encrypted)
+                    except Exception as decrypt_error:
+                        logger.error(f"Failed to decrypt private key: {decrypt_error}")
+                        recent_trades_summary = "Error: Failed to decrypt wallet private key"
+                        raise
+
                     # Initialize trading client
                     client = HyperliquidTradingClient(
                         account_id=account.id,
-                        private_key=wallet.private_key,
+                        private_key=private_key,
                         environment=environment,
                         wallet_address=wallet.wallet_address
                     )

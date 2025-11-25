@@ -432,12 +432,15 @@ class HyperliquidTradingClient:
                 if user_fills and coin and abs(position_size) > 1e-8:
                     opened_at = self._calculate_position_opened_time(coin, position_size, user_fills)
                     if opened_at:
-                        from datetime import datetime
+                        from datetime import datetime, timezone
                         import time as time_module
 
-                        # Convert to human-readable format
-                        opened_dt = datetime.fromtimestamp(opened_at / 1000)
-                        opened_at_str = opened_dt.strftime('%Y-%m-%d %H:%M:%S')
+                        # Convert to local server time (auto-detect timezone)
+                        # Use system's local timezone instead of hardcoding
+                        utc_dt = datetime.fromtimestamp(opened_at / 1000, tz=timezone.utc)
+                        local_tz = datetime.now().astimezone().tzinfo
+                        local_dt = utc_dt.astimezone(local_tz)
+                        opened_at_str = local_dt.strftime('%Y-%m-%d %H:%M:%S')
 
                         # Calculate holding duration
                         current_time_ms = int(time_module.time() * 1000)
@@ -737,10 +740,14 @@ class HyperliquidTradingClient:
             # Build trade summaries
             trades = []
             for fill in closed_fills:
-                from datetime import datetime
+                from datetime import datetime, timezone
 
                 close_time_ms = fill.get('time', 0)
-                close_time = datetime.fromtimestamp(close_time_ms / 1000).strftime('%Y-%m-%d %H:%M:%S')
+                # Convert to local server time (auto-detect timezone)
+                utc_dt = datetime.fromtimestamp(close_time_ms / 1000, tz=timezone.utc)
+                local_tz = datetime.now().astimezone().tzinfo
+                local_dt = utc_dt.astimezone(local_tz)
+                close_time = local_dt.strftime('%Y-%m-%d %H:%M:%S')
 
                 trade = {
                     'symbol': fill.get('coin'),
