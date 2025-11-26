@@ -210,6 +210,54 @@ def on_startup():
             db.rollback()
             print(f"[startup] Failed to ensure global_sampling_configs.sampling_depth: {migration_err}")
 
+        # Ensure crypto_klines has environment column (for testnet/mainnet isolation)
+        try:
+            result = db.execute(text("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'crypto_klines'
+            """))
+            columns = {row[0] for row in result}
+
+            if "environment" not in columns:
+                print("[startup] Adding environment column to crypto_klines table...")
+                # Add environment column with default value
+                db.execute(text("""
+                    ALTER TABLE crypto_klines
+                    ADD COLUMN environment VARCHAR(20) NOT NULL DEFAULT 'mainnet'
+                """))
+
+                # Update all existing records to 'mainnet' (they were from mainnet API)
+                db.execute(text("""
+                    UPDATE crypto_klines SET environment = 'mainnet' WHERE environment IS NULL
+                """))
+
+                # Drop old unique constraint if exists
+                db.execute(text("""
+                    ALTER TABLE crypto_klines
+                    DROP CONSTRAINT IF EXISTS crypto_klines_exchange_symbol_market_period_timestamp_key
+                """))
+
+                # Create new unique constraint including environment
+                db.execute(text("""
+                    ALTER TABLE crypto_klines
+                    ADD CONSTRAINT crypto_klines_exchange_symbol_market_period_timestamp_environment_key
+                    UNIQUE (exchange, symbol, market, period, timestamp, environment)
+                """))
+
+                # Create performance indexes
+                db.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_crypto_klines_environment ON crypto_klines(environment)
+                """))
+                db.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_crypto_klines_symbol_period_env ON crypto_klines(symbol, period, environment)
+                """))
+
+                print("[startup] Successfully added environment column to crypto_klines")
+            db.commit()
+        except Exception as migration_err:
+            db.rollback()
+            print(f"[startup] Failed to ensure crypto_klines.environment: {migration_err}")
+
         if db.query(TradingConfig).count() == 0:
             for cfg in DEFAULT_TRADING_CONFIGS.values():
                 db.add(
