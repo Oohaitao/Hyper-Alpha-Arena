@@ -70,6 +70,9 @@ async def list_all_accounts(db: Session = Depends(get_db)):
     """Get all active accounts (for paper trading demo)"""
     try:
         from database.models import User
+        from eth_account import Account as EthAccount
+        from services.hyperliquid_environment import decrypt_private_key
+
         accounts = db.query(Account).filter(Account.is_active == "true").all()
 
         result = []
@@ -107,6 +110,25 @@ async def list_all_accounts(db: Session = Depends(get_db)):
                     )
                     # Keep database values on error
 
+            # Derive wallet_address for mainnet accounts
+            wallet_address = None
+            has_mainnet_wallet = False
+            mainnet_private_key = getattr(account, "hyperliquid_mainnet_private_key", None)
+
+            if mainnet_private_key:
+                has_mainnet_wallet = True
+                try:
+                    decrypted_key = decrypt_private_key(mainnet_private_key)
+                    if decrypted_key:
+                        if not decrypted_key.startswith('0x'):
+                            decrypted_key = '0x' + decrypted_key
+                        eth_account = EthAccount.from_key(decrypted_key)
+                        wallet_address = eth_account.address.lower()
+                except Exception as wallet_err:
+                    logger.warning(
+                        f"Failed to derive wallet address for account {account.id}: {wallet_err}"
+                    )
+
             result.append({
                 "id": account.id,
                 "user_id": account.user_id,
@@ -120,7 +142,9 @@ async def list_all_accounts(db: Session = Depends(get_db)):
                 "base_url": account.base_url,
                 "api_key": account.api_key,
                 "is_active": account.is_active == "true",
-                "auto_trading_enabled": account.auto_trading_enabled == "true"
+                "auto_trading_enabled": account.auto_trading_enabled == "true",
+                "wallet_address": wallet_address,
+                "has_mainnet_wallet": has_mainnet_wallet
             })
 
         return result
