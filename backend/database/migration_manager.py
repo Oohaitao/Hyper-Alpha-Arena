@@ -33,6 +33,7 @@ MIGRATIONS = [
     "add_ai_signal_chat.py",
     "add_signal_pool_to_strategy.py",
     "add_logic_to_signal_pools.py",
+    "fix_enabled_column_type.py",
 ]
 
 

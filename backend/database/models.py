@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, BigInteger, String, DECIMAL, TIMESTAMP, ForeignKey, UniqueConstraint, Float, Date, DateTime, Text
+from sqlalchemy import Column, Integer, BigInteger, String, DECIMAL, TIMESTAMP, ForeignKey, UniqueConstraint, Float, Date, DateTime, Text, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import datetime
@@ -768,7 +768,7 @@ class SignalDefinition(Base):
     signal_name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
     trigger_condition = Column(Text, nullable=False)  # JSONB stored as text
-    enabled = Column(String(10), nullable=True, default="true")
+    enabled = Column(Boolean, nullable=True, default=True)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(),
                         onupdate=func.current_timestamp())
@@ -783,7 +783,7 @@ class SignalPool(Base):
     signal_ids = Column(Text, nullable=False, default="[]")  # JSONB stored as text
     symbols = Column(Text, nullable=False, default="[]")  # JSONB stored as text
     logic = Column(String(10), nullable=True, default="OR")  # AND/OR logic
-    enabled = Column(String(10), nullable=True, default="true")
+    enabled = Column(Boolean, nullable=True, default=True)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
 
 
@@ -804,7 +804,7 @@ class TraderTriggerConfig(Base):
     __tablename__ = "trader_trigger_config"
 
     trader_id = Column(String(36), primary_key=True)  # UUID as string
-    scheduled_enabled = Column(String(10), nullable=True, default="true")
+    scheduled_enabled = Column(Boolean, nullable=True, default=True)
     scheduled_interval = Column(Integer, nullable=True, default=30)
     signal_pool_id = Column(Integer, nullable=True)
     last_trigger_time = Column(TIMESTAMP, nullable=True)
