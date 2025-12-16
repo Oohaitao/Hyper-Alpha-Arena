@@ -16,7 +16,9 @@ import {
   testWalletConnection,
   deleteAccountWallet,
 } from '@/lib/hyperliquidApi'
+import { approveBuilder, type UnauthorizedAccount } from '@/lib/api'
 import { copyToClipboard } from '@/lib/utils'
+import { AuthorizationModal } from '@/components/hyperliquid'
 
 interface WalletConfigPanelProps {
   accountId: number
@@ -62,6 +64,10 @@ export default function WalletConfigPanel({
   const [mainnetPrivateKey, setMainnetPrivateKey] = useState('')
   const [mainnetMaxLeverage, setMainnetMaxLeverage] = useState(3)
   const [mainnetDefaultLeverage, setMainnetDefaultLeverage] = useState(1)
+
+  // Authorization modal states
+  const [unauthorizedAccounts, setUnauthorizedAccounts] = useState<UnauthorizedAccount[]>([])
+  const [authModalOpen, setAuthModalOpen] = useState(false)
 
   useEffect(() => {
     loadWalletInfo()
@@ -133,6 +139,19 @@ export default function WalletConfigPanel({
       if (result.success) {
         toast.success(`${environment === 'testnet' ? 'Testnet' : 'Mainnet'} wallet configured: ${result.walletAddress.substring(0, 10)}...`)
 
+        // Check if builder binding is required
+        // Note: Backend returns snake_case field name
+        if (result.requires_authorization && result.walletAddress) {
+          setUnauthorizedAccounts([{
+            account_id: accountId,
+            account_name: accountName,
+            wallet_address: result.walletAddress,
+            max_fee: 0,
+            required_fee: 30
+          }])
+          setAuthModalOpen(true)
+        }
+
         // Clear form
         if (environment === 'testnet') {
           setTestnetPrivateKey('')
@@ -167,6 +186,37 @@ export default function WalletConfigPanel({
 
       if (result.success && result.connection === 'successful') {
         toast.success(`✅ ${environment === 'testnet' ? 'Testnet' : 'Mainnet'} connection successful! Balance: $${result.accountState?.totalEquity.toFixed(2)}`)
+        // Builder binding for mainnet wallet after successful connection
+        if (environment === 'mainnet' && result.walletAddress) {
+          try {
+            const authResult = await approveBuilder(accountId)
+            // Check if binding failed
+            if (!authResult.success || authResult.result?.status === 'err') {
+              // Show authorization modal for user to retry manually
+              setUnauthorizedAccounts([{
+                account_id: accountId,
+                account_name: accountName,
+                wallet_address: result.walletAddress,
+                max_fee: 0,
+                required_fee: 30
+              }])
+              setAuthModalOpen(true)
+            }
+          } catch (err) {
+            console.error(`Builder binding failed for account ${accountId}:`, err)
+            // Show modal on exception as well
+            if (result.walletAddress) {
+              setUnauthorizedAccounts([{
+                account_id: accountId,
+                account_name: accountName,
+                wallet_address: result.walletAddress,
+                max_fee: 0,
+                required_fee: 30
+              }])
+              setAuthModalOpen(true)
+            }
+          }
+        }
       } else {
         toast.error(`❌ Connection failed: ${result.error || 'Unknown error'}`)
       }
@@ -482,6 +532,20 @@ export default function WalletConfigPanel({
           Configure both to seamlessly switch between environments without reconfiguring.
         </p>
       </div>
+
+      {/* Authorization Modal */}
+      <AuthorizationModal
+        isOpen={authModalOpen}
+        onClose={() => {
+          setAuthModalOpen(false)
+          setUnauthorizedAccounts([])
+        }}
+        unauthorizedAccounts={unauthorizedAccounts}
+        onAuthorizationComplete={() => {
+          setAuthModalOpen(false)
+          setUnauthorizedAccounts([])
+        }}
+      />
     </div>
   )
 }

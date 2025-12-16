@@ -380,7 +380,7 @@ export async function getAccountWallet(accountId: number): Promise<WalletInfo> {
 export async function configureAccountWallet(
   accountId: number,
   config: WalletConfigRequest
-): Promise<{ success: boolean; walletId: number; walletAddress: string; message: string }> {
+): Promise<{ success: boolean; walletId: number; walletAddress: string; message: string; requires_authorization?: boolean }> {
   const response = await apiRequest(
     `${HYPERLIQUID_API_BASE}/accounts/${accountId}/wallet`,
     {

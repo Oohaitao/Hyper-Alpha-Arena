@@ -54,9 +54,18 @@ export default function AuthorizationModal({
     updateAccountState(account.account_id, { authorizing: true, error: undefined })
     try {
       // Step 1: Call approve builder API
-      await approveBuilder(account.account_id)
+      const authResult = await approveBuilder(account.account_id)
 
-      // Step 2: Verify authorization
+      // Check if authorization failed
+      if (!authResult.success || authResult.result?.status === 'err') {
+        updateAccountState(account.account_id, {
+          authorizing: false,
+          error: authResult.message || 'Authorization failed'
+        })
+        return
+      }
+
+      // Step 2: Verify authorization (only if approve succeeded)
       const result = await checkBuilderAuthorization(account.wallet_address)
       if (result.authorized) {
         updateAccountState(account.account_id, { authorizing: false, authorized: true })
@@ -99,6 +108,8 @@ export default function AuthorizationModal({
       }
     }
     setClosing(false)
+    // Clear account states to ensure clean state on next open
+    setAccountStates({})
     onClose()
   }
 
@@ -156,8 +167,11 @@ export default function AuthorizationModal({
                   )}
                 </div>
 
-                {state.error && (
-                  <p className="text-sm text-red-500 mb-3">{state.error}</p>
+                {(state.error || account.error_message) && (
+                  <div className="text-sm text-red-600 dark:text-red-400 mb-3 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded">
+                    <p className="font-medium mb-1">Authorization Error:</p>
+                    <p className="text-xs break-words">{state.error || account.error_message}</p>
+                  </div>
                 )}
 
                 {!state.authorized && (

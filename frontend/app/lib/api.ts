@@ -894,6 +894,7 @@ export interface UnauthorizedAccount {
   wallet_address: string
   max_fee: number
   required_fee: number
+  error_message?: string
 }
 
 export interface CheckMainnetAccountsResponse {

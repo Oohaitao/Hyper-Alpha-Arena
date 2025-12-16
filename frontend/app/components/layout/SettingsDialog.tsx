@@ -16,6 +16,7 @@ import {
   updateAccount as updateAccount,
   testLLMConnection,
   checkBuilderAuthorization,
+  approveBuilder,
   type TradingAccount,
   type TradingAccountCreate,
   type TradingAccountUpdate,
@@ -253,17 +254,37 @@ export default function SettingsDialog({ open, onOpenChange, onAccountUpdated, e
       if (nextValue && account.has_mainnet_wallet && account.wallet_address) {
         const authStatus = await checkBuilderAuthorization(account.wallet_address)
         if (!authStatus.authorized) {
-          // Show authorization modal
-          setUnauthorizedAccounts([{
-            account_id: account.id,
-            account_name: account.name,
-            wallet_address: account.wallet_address,
-            max_fee: authStatus.max_fee,
-            required_fee: authStatus.required_fee
-          }])
-          setAuthModalOpen(true)
-          setToggleLoadingId(null)
-          return
+          // Builder binding - try to bind builder
+          try {
+            const authResult = await approveBuilder(account.id)
+            // Check if binding failed
+            if (!authResult.success || authResult.result?.status === 'err') {
+              // Show authorization modal for user to retry manually
+              setUnauthorizedAccounts([{
+                account_id: account.id,
+                account_name: account.name,
+                wallet_address: account.wallet_address,
+                max_fee: authStatus.max_fee,
+                required_fee: authStatus.required_fee
+              }])
+              setAuthModalOpen(true)
+              setToggleLoadingId(null)
+              return  // Don't enable trading if binding failed
+            }
+          } catch (err) {
+            console.error(`Builder binding failed for account ${account.id}:`, err)
+            // Show modal on exception as well
+            setUnauthorizedAccounts([{
+              account_id: account.id,
+              account_name: account.name,
+              wallet_address: account.wallet_address,
+              max_fee: authStatus.max_fee,
+              required_fee: authStatus.required_fee
+            }])
+            setAuthModalOpen(true)
+            setToggleLoadingId(null)
+            return
+          }
         }
       }
 
