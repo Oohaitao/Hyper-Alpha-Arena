@@ -199,6 +199,41 @@ def get_all_orm_models() -> List:
     return result
 
 
+def fix_raw_levels_column_type():
+    """
+    Fix raw_levels column type: jsonb -> text
+
+    Background: Early migration script created column as JSONB,
+    but ORM defines it as Text. This causes batch insert errors.
+    Converting jsonb to text is lossless (JSON string).
+
+    IDEMPOTENT: Only executes if column is jsonb, skips if already text.
+    """
+    db = SessionLocal()
+    try:
+        result = db.execute(text("""
+            SELECT data_type FROM information_schema.columns
+            WHERE table_name = 'market_orderbook_snapshots'
+            AND column_name = 'raw_levels'
+        """)).fetchone()
+
+        if not result:
+            return  # Table or column doesn't exist
+
+        if result[0].lower() == 'jsonb':
+            logger.info("[AutoFix] Fixing raw_levels column: jsonb -> text")
+            db.execute(text(
+                "ALTER TABLE market_orderbook_snapshots ALTER COLUMN raw_levels TYPE TEXT"
+            ))
+            db.commit()
+            logger.info("[AutoFix] Fixed raw_levels column type successfully")
+    except Exception as e:
+        logger.error(f"[AutoFix] Failed to fix raw_levels column type: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 def validate_and_sync_schema() -> bool:
     """
     Main entry point: Compare ORM models with database schema and auto-fix.
@@ -206,6 +241,9 @@ def validate_and_sync_schema() -> bool:
     IMPORTANT: This function NEVER raises exceptions and NEVER blocks startup.
     All errors are logged but the function always returns True.
     """
+    # Fix known type mismatch issues first
+    fix_raw_levels_column_type()
+
     logger.info("=" * 60)
     logger.info("Schema Validator: Starting ORM vs Database comparison...")
     logger.info("=" * 60)
