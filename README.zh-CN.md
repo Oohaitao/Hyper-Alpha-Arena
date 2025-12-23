@@ -2,7 +2,7 @@
 
 [English](./README.md) | **简体中文**
 
-> 一个**生产就绪**的开源 AI 交易平台，让任何人——**无论是否有编程经验**——都能部署自主的 LLM 驱动的加密货币交易策略。内置 AI 助手用于信号创建和提示词生成。支持 Hyperliquid DEX（测试网模拟交易和主网真实交易），计划集成 Binance 和 Aster DEX。**支持英文和中文。**
+> 开箱即用的开源 AI 交易平台。不会写代码？没关系——用自然语言就能让 AI 帮你自动交易加密货币。支持 Hyperliquid DEX（测试网模拟 + 主网实盘），Binance、Aster DEX 即将接入。
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![GitHub stars](https://img.shields.io/github/stars/HammerGPT/Hyper-Alpha-Arena)](https://github.com/HammerGPT/Hyper-Alpha-Arena/stargazers)
@@ -11,208 +11,203 @@
 [![English](https://img.shields.io/badge/Lang-English-blue)](https://www.akooi.com/docs/)
 [![中文](https://img.shields.io/badge/语言-中文-red)](https://www.akooi.com/docs/zh/)
 
-## 🔥 立即开始交易 - 最高 30% 手续费折扣
+## 🔥 开始交易，最高省 30% 手续费
 
-准备好让你的 AI 交易策略发挥作用了吗？从这些顶级交易所开始：
+### 🚀 **Hyperliquid** — 去中心化合约交易所
+- **无需 KYC** | **手续费低** | **性能强悍**
+- 与本项目深度集成，开箱即用
+- [**立即开户 →**](https://app.hyperliquid.xyz/join/HYPERSVIP)
 
-### 🚀 **Hyperliquid** - 去中心化永续合约交易所
-- **无需 KYC** | **低手续费** | **高性能**
-- 与 Hyper Alpha Arena 直接集成
-- [**开启合约交易 →**](https://app.hyperliquid.xyz/join/HYPERSVIP)
+### 💰 **Binance** — 全球最大交易所
+- **手续费打 7 折** | **深度好** | **工具全**
+- [**注册领 30% 返佣 →**](https://accounts.maxweb.red/register?ref=HYPERVIP)
 
-### 💰 **Binance** - 全球最大交易所
-- **30% 手续费折扣** | **高流动性** | **高级工具**
-- [**注册享 30% 折扣 →**](https://accounts.maxweb.red/register?ref=HYPERVIP)
-
-### ⚡ **Aster DEX** - 兼容 Binance 的 DEX
-- **更低手续费** | **多链支持** | **API 钱包安全**
+### ⚡ **Aster DEX** — 兼容 Binance 的 DEX
+- **手续费更低** | **多链支持** | **API 钱包更安全**
 - [**立即注册 →**](https://www.asterdex.com/zh-CN/referral/2b5924)
 
 ---
 
-## 概述
+## 这是什么
 
-Hyper Alpha Arena 是一个生产就绪的 AI 交易平台，大型语言模型（LLM）可以自主执行加密货币交易策略。受 [nof1 Alpha Arena](https://nof1.ai) 启发，该平台使 GPT-5、Claude 和 Deepseek 等 AI 模型能够基于实时市场数据做出智能交易决策并自动执行交易。
+Hyper Alpha Arena 是一个 AI 交易平台——让 GPT、Claude、Deepseek 这些大模型帮你盯盘、分析、下单，全自动。灵感来自 [nof1 Alpha Arena](https://nof1.ai)。
 
-**官方网站：** https://www.akooi.com/
+**官网：** https://www.akooi.com/
 
-## 适用人群
+## 适合谁用
 
-- **非技术交易者**：内置 AI 助手通过自然对话帮助你创建交易信号和策略提示词——无需编程
-- **量化研究员**：在部署真实资金之前，使用真实市场数据在测试网上测试 LLM 驱动的策略
-- **Hyperliquid 用户**：原生集成测试网（免费模拟交易）和主网（1-50 倍杠杆永续合约）
-- **AI 爱好者**：在真实交易场景中实验不同的 LLM（GPT、Claude、Deepseek）竞争
+| 你是谁 | 能得到什么 |
+|--------|-----------|
+| **普通交易者** | 不会写代码也能用，AI 助手陪你聊天就能配好策略 |
+| **量化玩家** | 先在测试网跑通策略，再上真金白银 |
+| **Hyperliquid 用户** | 测试网免费练手，主网 1-50 倍杠杆实盘 |
+| **AI 发烧友** | 让 GPT、Claude、Deepseek 同台 PK，看谁更能赚 |
 
-**交易模式：**
-- **Hyperliquid 测试网（模拟交易）**：无风险测试，具有真实市场机制、免费测试资金和真实订单簿——卓越的模拟交易体验
-- **Hyperliquid 主网**：在去中心化永续合约交易所进行实盘交易，支持 1-50 倍杠杆（真实资金有风险）
+**两种模式：**
+- **测试网（模拟盘）**：零风险练手，真实行情、真实订单簿、免费测试金
+- **主网（实盘）**：真金白银，1-50 倍杠杆，盈亏自负
 
-## 功能特性
+## 核心功能
 
-### 核心交易功能
-- **多模型 LLM 支持**：兼容 OpenAI API 的模型（GPT-5、Claude、Deepseek 等）
-- **多钱包架构**：每个 AI Trader 可以为测试网和主网配置独立钱包
-- **全局交易模式**：集中式环境切换，同时影响所有 AI Trader
-- **AI 提示词生成器**：用于生成优化交易策略提示词的交互式聊天界面
-  - 通过自然语言对话定义交易目标和风险偏好
-  - 自动生成包含技术指标的结构化提示词
-  - 对话历史管理，支持标题编辑
-  - 一键应用到 AI Trader 配置
+### 交易能力
+- **多模型支持**：GPT、Claude、Deepseek……兼容所有 OpenAI API 格式的模型
+- **多钱包架构**：每个 AI Trader 可以分别配置测试网和主网钱包
+- **全局环境切换**：一键切换所有 Trader 的交易环境
+- **AI 提示词生成器**：
+  - 用自然语言描述你的交易想法
+  - AI 自动生成结构化的策略提示词
+  - 支持对话历史管理
+  - 一键应用到 Trader 配置
 - **提示词模板管理**：
-  - 可自定义的 AI 交易提示词，带可视化编辑器
-  - 账户特定的提示词绑定系统，包含 Hyperliquid 专用模板
-  - 默认、专业版和 Hyperliquid 模板，包含杠杆教育
-  - 未绑定账户自动回退到默认模板
-- **技术分析集成**：11 个内置技术指标
-  - 趋势：SMA、EMA、MACD
-  - 动量：RSI、随机振荡器
-  - 波动性：布林带、ATR
+  - 可视化编辑器，自定义交易提示词
+  - 支持账户级别的模板绑定
+  - 内置默认、专业版、Hyperliquid 专用模板
+- **技术指标**：内置 11 个常用指标
+  - 趋势类：SMA、EMA、MACD
+  - 动量类：RSI、随机指标
+  - 波动类：布林带、ATR
   - 成交量：OBV、VWAP
-  - 支撑/阻力：枢轴点、斐波那契回撤
-- **实时市场数据**：通过 ccxt 从多个交易所获取实时加密货币价格
-- **信号触发交易**：定义激活 AI 分析的市场条件
-  - 创建自定义信号：OI 变化、资金费率飙升、价格突破
-  - AI 信号生成器：自然语言转信号配置
-  - 与定时触发器结合，实现全面覆盖
-- **AI Trader 管理**：创建和管理多个具有独立配置的 AI 交易代理
+  - 支撑阻力：枢轴点、斐波那契
+- **信号触发交易**：
+  - 自定义触发条件：OI 变化、资金费率异动、价格突破……
+  - AI 信号生成器：用自然语言描述，自动转成信号配置
+  - 可与定时触发组合使用
+- **多 Trader 管理**：创建多个 AI Trader，各自独立配置
 
-### Hyperliquid 交易功能
-- **永续合约交易**：在 Hyperliquid DEX 上真实执行订单
-  - 市价单和限价单，支持 1-50 倍杠杆
-  - 多空仓位，自动计算强平价格
-  - 全仓模式，实时监控保证金使用率
-- **环境隔离**：测试网和主网严格分离
-  - 每个环境独立的钱包配置
-  - 环境感知缓存，使用 `(account_id, environment)` 复合键
-  - API 调用隔离，防止跨环境数据污染
-- **风险管理**：内置安全机制
-  - 最大杠杆限制（每个账户可配置，1-50 倍）
-  - 保证金使用率警报（80% 使用率时自动暂停交易）
-  - 强平价格显示和警告
-- **AI 驱动交易**：LLM 驱动的永续合约交易
-  - 杠杆感知的 AI 提示词，包含风险管理教育
-  - 基于市场信心的自动杠杆选择
-  - 与现有 AI 决策引擎完全集成
+### Hyperliquid 专属功能
+- **永续合约交易**：
+  - 市价单、限价单，1-50 倍杠杆
+  - 多空双向，自动计算强平价
+  - 全仓模式，实时监控保证金
+- **环境隔离**：
+  - 测试网、主网严格分开
+  - 钱包、缓存、API 调用完全隔离
+- **风控机制**：
+  - 最大杠杆限制（可按账户配置）
+  - 保证金使用率超 80% 自动暂停
+  - 强平价格预警
+- **AI 驱动交易**：
+  - 杠杆感知提示词，内置风控教育
+  - AI 根据市场信心自动选择杠杆倍数
+  - 与现有 AI 决策引擎无缝集成
 
-## 截图
+## 界面预览
 
-### 仪表板概览
-![Dashboard Overview](screenshots/dashboard-overview.png)
+### 仪表盘总览
+![仪表盘总览](screenshots/dashboard-overview.png)
 
 ### AI 提示词生成器
-![AI Prompt Generator](screenshots/ai-prompt-generator.png)
+![AI 提示词生成器](screenshots/ai-prompt-generator.png)
 
 ### 技术分析
-![Technical Analysis](screenshots/ai-technical-analysis.png)
+![技术分析](screenshots/ai-technical-analysis.png)
 
 ### Trader 配置
-![Trader Configuration](screenshots/trader-configuration.png)
+![Trader 配置](screenshots/trader-configuration.png)
 
 ## 快速开始
 
-### 前置要求
+### 环境要求
 
-- **Docker Desktop** ([下载](https://www.docker.com/products/docker-desktop))
+- **Docker Desktop**（[下载地址](https://www.docker.com/products/docker-desktop)）
   - Windows：Docker Desktop for Windows
   - macOS：Docker Desktop for Mac
-  - Linux：Docker Engine ([安装指南](https://docs.docker.com/engine/install/))
+  - Linux：Docker Engine（[安装指南](https://docs.docker.com/engine/install/)）
 
-### 安装
+### 安装步骤
 
 ```bash
 # 克隆仓库
 git clone https://github.com/HammerGPT/Hyper-Alpha-Arena.git
 cd Hyper-Alpha-Arena
 
-# 启动应用（根据你的 Docker 版本选择一个命令）
-docker compose up -d --build        # 适用于较新的 Docker Desktop（推荐）
+# 启动应用（根据你的 Docker 版本选择命令）
+docker compose up -d --build        # 新版 Docker Desktop（推荐）
 # 或
-docker-compose up -d --build       # 适用于较旧的 Docker 版本或独立的 docker-compose
+docker-compose up -d --build       # 旧版 Docker 或独立安装的 docker-compose
 ```
 
-应用将在 **http://localhost:8802** 可用
+启动完成后访问 **http://localhost:8802**
 
-### 管理应用
+### 常用命令
 
 ```bash
 # 查看日志
-docker compose logs -f        # (或 docker-compose logs -f)
+docker compose logs -f        # 或 docker-compose logs -f
 
 # 停止应用
-docker compose down          # (或 docker-compose down)
+docker compose down          # 或 docker-compose down
 
 # 重启应用
-docker compose restart       # (或 docker-compose restart)
+docker compose restart       # 或 docker-compose restart
 
 # 更新到最新版本
 git pull origin main
-docker compose up -d --build # (或 docker-compose up -d --build)
+docker compose up -d --build # 或 docker-compose up -d --build
 ```
 
-**重要提示：**
-- 所有数据（数据库、配置、交易历史）都持久化在 Docker 卷中
-- 停止/重启容器时数据会被保留
-- 只有 `docker-compose down -v` 会删除数据（除非你想重置所有内容，否则不要使用 `-v` 标志）
+**注意事项**：
+- 所有数据（数据库、配置、交易记录）都保存在 Docker 卷中
+- 停止/重启容器不会丢失数据
+- 只有 `docker-compose down -v` 会删除数据（除非想重置，否则别加 `-v`）
 
-## 首次设置
+## 首次配置
 
-详细的设置说明包括：
-- Hyperliquid 钱包配置（测试网和主网）
-- AI Trader 创建和 LLM API 设置
-- 交易环境和杠杆设置
+详细配置指南请参考官方文档，包括：
+- Hyperliquid 钱包配置（测试网 & 主网）
+- AI Trader 创建与 LLM API 设置
+- 交易环境与杠杆设置
 - 信号触发交易配置
 
-**📖 查看我们的完整指南：[入门指南](https://www.akooi.com/docs/guide/getting-started.html)**
+**📖 完整指南：[快速开始](https://www.akooi.com/docs/zh/guide/getting-started.html)**
 
 ## 支持的模型
 
-Hyper Alpha Arena 支持任何兼容 OpenAI API 的语言模型。**为获得最佳效果，我们推荐使用 Deepseek**，因其在交易场景中具有成本效益和强大性能。
+Hyper Alpha Arena 支持所有兼容 OpenAI API 的大语言模型。**推荐使用 Deepseek**，性价比高，交易场景表现出色。
 
 支持的模型包括：
-- **Deepseek**（推荐）：交易决策的卓越性价比
+- **Deepseek**（推荐）：交易决策性价比之王
 - **OpenAI**：GPT-5 系列、o1 系列、GPT-4o、GPT-4
 - **Anthropic**：Claude（通过兼容端点）
-- **自定义 API**：任何兼容 OpenAI 的端点
+- **自定义 API**：任何 OpenAI 兼容的端点
 
-平台自动处理模型特定的配置和参数差异。
+平台会自动处理不同模型的配置差异。
 
-## 故障排除
+## 常见问题
 
-### 常见问题
-
-**问题**：端口 8802 已被占用
-**解决方案**：
+**问题**：端口 8802 被占用
+**解决**：
 ```bash
 docker-compose down
 docker-compose up -d --build
 ```
 
-**问题**：无法连接到 Docker 守护进程
-**解决方案**：确保 Docker Desktop 正在运行
+**问题**：无法连接 Docker 守护进程
+**解决**：确保 Docker Desktop 正在运行
 
 **问题**：数据库连接错误
-**解决方案**：等待 PostgreSQL 容器健康（使用 `docker-compose ps` 检查）
+**解决**：等待 PostgreSQL 容器启动完成（用 `docker-compose ps` 检查状态）
 
 **问题**：想要重置所有数据
-**解决方案**：
+**解决**：
 ```bash
-docker-compose down -v  # 这将删除所有数据！
+docker-compose down -v  # 这会删除所有数据！
 docker-compose up -d --build
 ```
 
-## 贡献
+## 参与贡献
 
-我们欢迎社区贡献！你可以通过以下方式帮助：
+欢迎社区贡献！你可以：
 
-- 报告 bug 和问题
-- 建议新功能
-- 提交 pull request
-- 改进文档
-- 在不同平台上测试
+- 报告 Bug 和问题
+- 提出新功能建议
+- 提交 Pull Request
+- 完善文档
+- 在不同平台测试
 
-请 star 和 fork 此仓库以保持对开发进度的关注。
+请 Star 和 Fork 本仓库，关注开发进展。
 
-## 资源
+## 相关资源
 
 ### Hyperliquid
 - 官方文档：https://hyperliquid.gitbook.io/
@@ -224,31 +219,31 @@ docker-compose up -d --build
 
 ## 社区与支持
 
-**🌐 官方网站**：[https://www.akooi.com/](https://www.akooi.com/)
+**🌐 官网**：[https://www.akooi.com/](https://www.akooi.com/)
 
-**🐦 在 Twitter/X 上联系我**：[@GptHammer3309](https://x.com/GptHammer3309)
-- Hyper Alpha Arena 开发的最新动态
-- AI 交易见解和策略讨论
-- 技术支持和问答
+**🐦 Twitter/X**：[@GptHammer3309](https://x.com/GptHammer3309)
+- Hyper Alpha Arena 最新动态
+- AI 交易见解与策略讨论
+- 技术支持与答疑
 
-加入我们的 [Telegram 群组](https://t.me/+RqxjT7Gttm9hOGEx) 进行实时讨论和快速响应：
-- 报告 bug（请尽可能包含日志、截图和步骤）
-- 分享策略见解或产品反馈
-- 提醒我关注 PR/Issue，以便我快速响应
+**💬 Telegram 群**：[点击加入](https://t.me/+RqxjT7Gttm9hOGEx)
+- 反馈 Bug（尽量附日志、截图、复现步骤）
+- 讨论策略或产品体验
+- PR / Issue 想要我关注可在群里提醒
 
-友情提醒：Telegram 用于快速沟通，但最终的跟踪和修复仍通过 GitHub Issues/Pull Requests 进行。切勿在聊天中发布 API 密钥或其他敏感数据。
+注意：Telegram 主要用于快速沟通，正式记录请继续使用 GitHub Issues / Pull Requests；谨记不要分享密钥等敏感信息。
 
 ## 许可证
 
-本项目采用 Apache License 2.0 许可。详见 [LICENSE](LICENSE) 文件。
+本项目采用 Apache License 2.0 许可证。详见 [LICENSE](LICENSE) 文件。
 
 ## 致谢
 
-- **etrobot** - 原始 open-alpha-arena 项目
-- **nof1.ai** - Alpha Arena 的灵感来源
+- **etrobot** - open-alpha-arena 原始项目
+- **nof1.ai** - Alpha Arena 灵感来源
 - **Hyperliquid** - 去中心化永续合约交易平台
 - **OpenAI、Anthropic、Deepseek** - LLM 提供商
 
 ---
 
-Star 此仓库以关注开发进度。
+Star 本仓库，关注开发进展。
