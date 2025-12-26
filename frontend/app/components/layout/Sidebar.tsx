@@ -38,6 +38,15 @@ const SignalIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
+// Attribution icon component (custom SVG)
+const AttributionIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 1024 1024" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M341.333333 426.666667a213.333333 213.333333 0 1 0 426.666667 0 213.333333 213.333333 0 0 0-426.666667 0z" opacity="0.9"/>
+    <path d="M259.84 470.4c-75.605333 18.773333-131.584 86.613333-131.754667 167.253333-0.170667 93.824 78.677333 172.416 173.397334 173.013334a174.293333 174.293333 0 0 0 166.144-117.162667 33.194667 33.194667 0 0 0-19.84-41.856 240.768 240.768 0 0 1-147.328-158.293333 33.536 33.536 0 0 0-40.618667-22.997334v0.042667z" opacity="0.6"/>
+    <path d="M170.666667 245.333333a74.709333 74.709333 0 0 0 112 64.682667A74.666667 74.666667 0 1 0 170.666667 245.333333zM769.152 597.333333A128.128 128.128 0 0 0 640 726.485333 128.042667 128.042667 0 0 0 766.848 853.333333 128.128 128.128 0 0 0 896 724.181333 128.128 128.128 0 0 0 769.152 597.333333z"/>
+  </svg>
+)
+
 const CommunityIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" fill="none">
     <path d="M512 512m-512 0a512 512 0 1 0 1024 0 512 512 0 1 0-1024 0Z" fill="#7AA5DA" />
@@ -89,6 +98,7 @@ export default function Sidebar({ currentPage = 'comprehensive', onPageChange, o
     { label: t('sidebar.aiTrader', 'AI Trader'), page: 'trader-management', icon: AITraderIcon },
     { label: t('sidebar.prompts', 'Prompts'), page: 'prompt-management', icon: NotebookPen },
     { label: t('sidebar.signals', 'Signals'), page: 'signal-management', icon: SignalIcon },
+    { label: t('sidebar.attribution', 'Attribution'), page: 'attribution', icon: AttributionIcon },
     { label: t('sidebar.manualTrading', 'Manual Trading'), page: 'hyperliquid', icon: Coins },
     { label: t('sidebar.klines', 'K-Lines'), page: 'klines', icon: KLinesIcon },
     { label: t('sidebar.premium', 'Premium'), page: 'premium-features', icon: PremiumIcon },

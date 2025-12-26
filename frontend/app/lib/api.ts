@@ -500,6 +500,9 @@ export interface ArenaTrade {
   commission: number
   trade_time?: string | null
   wallet_address?: string | null
+  signal_trigger_id?: number | null
+  prompt_template_id?: number | null
+  prompt_template_name?: string | null
 }
 
 export interface ArenaTradesResponse {
@@ -562,6 +565,9 @@ export interface ArenaModelChatEntry {
   reasoning_snapshot?: string | null
   decision_snapshot?: string | null
   wallet_address?: string | null
+  signal_trigger_id?: number | null
+  prompt_template_id?: number | null
+  prompt_template_name?: string | null
 }
 
 export interface ArenaModelChatResponse {

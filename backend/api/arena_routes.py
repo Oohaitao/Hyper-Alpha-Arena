@@ -22,6 +22,7 @@ from database.models import (
     AIDecisionLog,
     Order,
     AccountStrategyConfig,
+    PromptTemplate,
 )
 from database.snapshot_models import HyperliquidTrade
 from services.asset_calculator import calc_positions_value
@@ -433,6 +434,26 @@ def get_completed_trades(
             for acc in db.query(Account).filter(Account.id.in_(account_ids)).all()
         }
 
+        # Batch fetch decision logs by hyperliquid_order_id to get signal/prompt info
+        order_ids = {trade.order_id for trade in hyper_trades if trade.order_id}
+        decision_map = {}
+        prompt_template_ids = set()
+        if order_ids:
+            decisions = db.query(AIDecisionLog).filter(
+                AIDecisionLog.hyperliquid_order_id.in_(order_ids)
+            ).all()
+            for d in decisions:
+                if d.hyperliquid_order_id:
+                    decision_map[d.hyperliquid_order_id] = d
+                    if d.prompt_template_id:
+                        prompt_template_ids.add(d.prompt_template_id)
+
+        # Batch fetch prompt template names
+        prompt_template_map = {}
+        if prompt_template_ids:
+            templates = db.query(PromptTemplate).filter(PromptTemplate.id.in_(prompt_template_ids)).all()
+            prompt_template_map = {t.id: t.name for t in templates}
+
         trades: List[dict] = []
         accounts_meta: Dict[int, dict] = {}
 
@@ -447,6 +468,12 @@ def get_completed_trades(
             notional = float(trade.trade_value)
             commission = float(trade.fee or 0)
             side = trade.side.upper()
+
+            # Get decision info for signal/prompt
+            decision = decision_map.get(trade.order_id) if trade.order_id else None
+            signal_trigger_id = decision.signal_trigger_id if decision else None
+            prompt_template_id = decision.prompt_template_id if decision else None
+            prompt_template_name = prompt_template_map.get(prompt_template_id) if prompt_template_id else None
 
             trades.append(
                 {
@@ -466,6 +493,9 @@ def get_completed_trades(
                     "commission": commission,
                     "trade_time": trade.trade_time.isoformat() if trade.trade_time else None,
                     "wallet_address": trade.wallet_address,
+                    "signal_trigger_id": signal_trigger_id,
+                    "prompt_template_id": prompt_template_id,
+                    "prompt_template_name": prompt_template_name,
                 }
             )
 
@@ -617,6 +647,13 @@ def get_model_chat(
         .all()
     }
 
+    # Batch fetch prompt template names
+    prompt_template_ids = {log.prompt_template_id for log, _ in decision_rows if log.prompt_template_id}
+    prompt_template_map = {}
+    if prompt_template_ids:
+        templates = db.query(PromptTemplate).filter(PromptTemplate.id.in_(prompt_template_ids)).all()
+        prompt_template_map = {t.id: t.name for t in templates}
+
     for log, account in decision_rows:
         strategy = strategy_map.get(account.id)
         last_trigger_iso = None
@@ -663,6 +700,9 @@ def get_model_chat(
             "last_trigger_at": last_trigger_iso,
             "trigger_latency_seconds": trigger_latency,
             "wallet_address": log.wallet_address,
+            "signal_trigger_id": log.signal_trigger_id,
+            "prompt_template_id": log.prompt_template_id,
+            "prompt_template_name": prompt_template_map.get(log.prompt_template_id) if log.prompt_template_id else None,
         }
 
         # Only include heavy snapshot fields when explicitly requested

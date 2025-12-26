@@ -74,15 +74,15 @@ function formatValue(metric: string, value: number): string {
 // Get regime display color
 function getRegimeColor(regime: string): string {
   const colors: Record<string, string> = {
-    stop_hunt: 'text-red-400',
-    absorption: 'text-purple-400',
-    breakout: 'text-green-400',
-    continuation: 'text-blue-400',
-    exhaustion: 'text-orange-400',
-    trap: 'text-yellow-400',
-    noise: 'text-gray-400',
+    stop_hunt: 'text-red-500',
+    absorption: 'text-purple-500',
+    breakout: 'text-green-500',
+    continuation: 'text-blue-500',
+    exhaustion: 'text-orange-500',
+    trap: 'text-yellow-500',
+    noise: 'text-gray-500',
   }
-  return colors[regime] || 'text-gray-400'
+  return colors[regime] || 'text-gray-500'
 }
 
 // Format regime name for display

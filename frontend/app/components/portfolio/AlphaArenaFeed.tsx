@@ -40,6 +40,7 @@ interface AlphaArenaFeedProps {
   selectedAccount?: number | 'all'
   onSelectedAccountChange?: (accountId: number | 'all') => void
   walletAddress?: string
+  onPageChange?: (page: string) => void
 }
 
 type FeedTab = 'trades' | 'model-chat' | 'positions'
@@ -73,6 +74,7 @@ export default function AlphaArenaFeed({
   selectedAccount: selectedAccountProp,
   onSelectedAccountChange,
   walletAddress,
+  onPageChange,
 }: AlphaArenaFeedProps) {
   const { t } = useTranslation()
   const { getData, updateData } = useArenaData()
@@ -772,24 +774,39 @@ export default function AlphaArenaFeed({
           {!error && (
             <>
               <TabsContent value="trades" className="flex-1 h-0 overflow-y-auto mt-0 p-4 space-y-4">
-                {/* PnL Update Button */}
+                {/* Action Buttons */}
                 <div className="flex items-center justify-between gap-2 pb-2 border-b border-border">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowPnlConfirm(true)}
-                    disabled={updatingPnl}
-                    className="text-xs"
-                  >
-                    {updatingPnl ? (
-                      <>
-                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                        {t('feed.updatingPnl', 'Updating...')}
-                      </>
-                    ) : (
-                      t('feed.updatePnl', 'Update PnL Data')
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (onPageChange) {
+                          onPageChange('attribution')
+                          window.location.hash = 'attribution'
+                        }
+                      }}
+                      className="text-xs"
+                    >
+                      {t('feed.attributionAnalysis', 'Attribution Analysis')}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowPnlConfirm(true)}
+                      disabled={updatingPnl}
+                      className="text-xs"
+                    >
+                      {updatingPnl ? (
+                        <>
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          {t('feed.updatingPnl', 'Updating...')}
+                        </>
+                      ) : (
+                        t('feed.updatePnl', 'Update PnL Data')
+                      )}
+                    </Button>
+                  </div>
                   {pnlUpdateResult && (
                     <span className="text-xs text-muted-foreground">{pnlUpdateResult}</span>
                   )}
@@ -889,6 +906,24 @@ export default function AlphaArenaFeed({
                             </span>
                           </div>
                         </div>
+                        {(trade.signal_trigger_id || trade.prompt_template_name) && (
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground pt-1 border-t border-border/50">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                              trade.signal_trigger_id
+                                ? 'bg-purple-100 text-purple-700'
+                                : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {trade.signal_trigger_id
+                                ? t('feed.signalPoolTrigger', 'Signal Pool')
+                                : t('feed.scheduledTrigger', 'Scheduled')}
+                            </span>
+                            {trade.prompt_template_name && (
+                              <span className="px-2 py-0.5 rounded bg-muted text-foreground font-medium">
+                                {trade.prompt_template_name}
+                              </span>
+                            )}
+                          </div>
+                        )}
                         </div>
                       </HighlightWrapper>
                     )
@@ -968,12 +1003,27 @@ export default function AlphaArenaFeed({
                           {entry.symbol && (
                             <span className="font-semibold">{entry.symbol}</span>
                           )}
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                            entry.signal_trigger_id
+                              ? 'bg-purple-100 text-purple-700'
+                              : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {entry.signal_trigger_id
+                              ? t('feed.signalPoolTrigger', 'Signal Pool')
+                              : t('feed.scheduledTrigger', 'Scheduled')}
+                          </span>
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {isExpanded ? entry.reason : `${entry.reason.slice(0, 160)}${entry.reason.length > 160 ? '…' : ''}`}
                         </div>
                         {isExpanded && (
                           <div className="space-y-2 pt-3">
+                            {entry.prompt_template_name && (
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground pb-1">
+                                <span className="font-medium">{t('feed.promptTemplate', 'Prompt Template')}:</span>
+                                <span className="px-2 py-0.5 rounded bg-muted text-foreground font-medium">{entry.prompt_template_name}</span>
+                              </div>
+                            )}
                             {(() => {
                               const snapshots = getSnapshotData(entry)
                               const isLoadingEntry = loadingSnapshots.has(entry.id)

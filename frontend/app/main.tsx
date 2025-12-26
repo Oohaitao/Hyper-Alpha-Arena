@@ -29,6 +29,7 @@ import ComprehensiveView from '@/components/portfolio/ComprehensiveView'
 import SystemLogs from '@/components/layout/SystemLogs'
 import PromptManager from '@/components/prompt/PromptManager'
 import SignalManager from '@/components/signal/SignalManager'
+import AttributionAnalysis from '@/components/analytics/AttributionAnalysis'
 import TraderManagement from '@/components/trader/TraderManagement'
 import { HyperliquidPage } from '@/components/hyperliquid'
 import HyperliquidView from '@/components/hyperliquid/HyperliquidView'
@@ -75,6 +76,7 @@ const PAGE_TITLES: Record<string, string> = {
   'system-logs': 'System Logs',
   'prompt-management': 'Prompt Templates',
   'signal-management': 'Signal System',
+  'attribution': 'Attribution Analysis',
   'trader-management': 'AI Trader Management',
   'hyperliquid': 'Hyperliquid Trading',
   'klines': 'K-Line Charts',
@@ -657,6 +659,7 @@ function App() {
               <HyperliquidView
                 wsRef={wsRef}
                 refreshKey={hyperliquidRefreshKey}
+                onPageChange={setCurrentPage}
               />
             </div>
           )
@@ -672,6 +675,10 @@ function App() {
 
         {currentPage === 'signal-management' && (
           <SignalManager />
+        )}
+
+        {currentPage === 'attribution' && (
+          <AttributionAnalysis />
         )}
 
         {currentPage === 'trader-management' && (

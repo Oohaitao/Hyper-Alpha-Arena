@@ -24,9 +24,10 @@ import HyperliquidAssetChart, { TradeMarker } from './HyperliquidAssetChart'
 interface HyperliquidViewProps {
   wsRef?: React.MutableRefObject<WebSocket | null>
   refreshKey?: number
+  onPageChange?: (page: string) => void
 }
 
-export default function HyperliquidView({ wsRef, refreshKey = 0 }: HyperliquidViewProps) {
+export default function HyperliquidView({ wsRef, refreshKey = 0, onPageChange }: HyperliquidViewProps) {
   const { t } = useTranslation()
   const { tradingMode } = useTradingMode()
   const [loading, setLoading] = useState(true)
@@ -133,6 +134,7 @@ export default function HyperliquidView({ wsRef, refreshKey = 0 }: HyperliquidVi
             wsRef={wsRef}
             selectedAccount={selectedAccount}
             onSelectedAccountChange={setSelectedAccount}
+            onPageChange={onPageChange}
           />
         </div>
       </div>

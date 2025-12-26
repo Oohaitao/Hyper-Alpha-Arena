@@ -38,6 +38,7 @@ MIGRATIONS = [
     "create_market_regime_configs.py",
     "add_market_regime_to_trigger_logs.py",
     "add_decision_tracking_fields.py",
+    "add_ai_attribution_chat.py",
 ]
 
 
