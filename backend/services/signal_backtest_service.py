@@ -249,10 +249,13 @@ class SignalBacktestService:
         triggers = []
         was_active = False
 
+        # Build timestamps index for O(log n) binary search optimization
+        timestamps_index = [r[0] for r in raw_data]
+
         for check_time in check_points:
             # Calculate indicator value at this check point (using only data up to check_time)
             value = self._calculate_indicator_at_time(
-                raw_data, metric, check_time, interval_ms
+                raw_data, metric, check_time, interval_ms, timestamps_index
             )
 
             if value is None:
@@ -307,9 +310,12 @@ class SignalBacktestService:
         # Convert user's ratio threshold to log threshold
         log_threshold = math.log(max(ratio_threshold, 1.01))
 
+        # Build timestamps index for O(log n) binary search optimization
+        timestamps_index = [r[0] for r in raw_data]
+
         for check_time in check_points:
             # Calculate taker data at this check point
-            taker_data = self._calc_taker_data_at_time(raw_data, check_time, interval_ms)
+            taker_data = self._calc_taker_data_at_time(raw_data, check_time, interval_ms, timestamps_index)
             if not taker_data:
                 continue
 
@@ -1031,6 +1037,7 @@ class SignalBacktestService:
 
         # Load raw data for all metrics needed
         metrics_data = {}
+        metrics_timestamps_index = {}  # timestamps_index for each metric
         for signal_id, sig_def in signal_defs.items():
             condition = sig_def["trigger_condition"]
             metric = condition.get("metric")
@@ -1047,6 +1054,8 @@ class SignalBacktestService:
                         db, symbol, mapped_metric, kline_min_ts, kline_max_ts, interval_ms
                     )
                     metrics_data[mapped_metric] = raw_data
+                    # Build timestamps index for O(log n) binary search
+                    metrics_timestamps_index[mapped_metric] = [r[0] for r in raw_data] if raw_data else []
 
         # Generate check points from all data
         all_timestamps = set()
@@ -1082,7 +1091,8 @@ class SignalBacktestService:
                     log_threshold = math.log(max(ratio_threshold, 1.01))
 
                     raw_data = metrics_data.get("taker_ratio", [])
-                    taker_data = self._calc_taker_data_at_time(raw_data, check_time, interval_ms)
+                    timestamps_index = metrics_timestamps_index.get("taker_ratio")
+                    taker_data = self._calc_taker_data_at_time(raw_data, check_time, interval_ms, timestamps_index)
 
                     if taker_data is None:
                         all_met = False
@@ -1132,7 +1142,8 @@ class SignalBacktestService:
                     mapped_metric = metric_map.get(metric, metric)
 
                     raw_data = metrics_data.get(mapped_metric, [])
-                    value = self._calculate_indicator_at_time(raw_data, mapped_metric, check_time, interval_ms)
+                    timestamps_index = metrics_timestamps_index.get(mapped_metric)
+                    value = self._calculate_indicator_at_time(raw_data, mapped_metric, check_time, interval_ms, timestamps_index)
 
                     if value is None:
                         all_met = False
@@ -1473,19 +1484,28 @@ class SignalBacktestService:
         return None
 
     def _calc_taker_data_at_time(
-        self, raw_data: List[tuple], check_time: int, interval_ms: int
+        self, raw_data: List[tuple], check_time: int, interval_ms: int,
+        timestamps_index: List[int] = None
     ) -> Optional[Dict]:
         """Calculate taker volume data (log_ratio and volume) at a specific time.
 
         Uses ln(buy/sell) for symmetric ratio around 0.
         """
+        import bisect
         import math
         from services.market_flow_indicators import floor_timestamp
 
         lookback_ms = interval_ms * 10
         start_time = check_time - lookback_ms
 
-        relevant_data = [r for r in raw_data if start_time <= r[0] <= check_time]
+        # Use binary search for O(log n) instead of O(n) linear filter
+        if timestamps_index is not None:
+            left_idx = bisect.bisect_left(timestamps_index, start_time)
+            right_idx = bisect.bisect_right(timestamps_index, check_time)
+            relevant_data = raw_data[left_idx:right_idx]
+        else:
+            relevant_data = [r for r in raw_data if start_time <= r[0] <= check_time]
+
         if not relevant_data:
             return None
 
