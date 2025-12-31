@@ -1044,6 +1044,11 @@ def _process_fills_for_environment(
     """
     Process fills for a specific environment and update database records.
 
+    This function:
+    1. Updates existing HyperliquidTrade records with fee data
+    2. Creates missing HyperliquidTrade records for resting orders that later filled
+    3. Updates AIDecisionLog.realized_pnl for closed positions
+
     Returns summary of updates.
     """
     from decimal import Decimal
@@ -1053,6 +1058,7 @@ def _process_fills_for_environment(
         "fills_count": len(fills),
         "unique_orders": 0,
         "trades_updated": 0,
+        "trades_created": 0,
         "decisions_updated": 0,
         "skipped": 0,
     }
@@ -1098,6 +1104,9 @@ def _process_fills_for_environment(
         else:
             result["skipped"] += 1
 
+    # Collect existing trade order_ids for deduplication
+    existing_trade_order_ids = {str(t.order_id) for t in trades if t.order_id}
+
     # Update AIDecisionLog records
     # Match by hyperliquid_order_id, tp_order_id, sl_order_id and accumulate PnL
     decisions = db.query(AIDecisionLog).filter(
@@ -1105,6 +1114,78 @@ def _process_fills_for_environment(
         AIDecisionLog.executed == "true",
         AIDecisionLog.hyperliquid_environment == environment,
     ).all()
+
+    # Build order_id -> decision mapping for creating missing trades
+    order_to_decision = {}
+    for decision in decisions:
+        for oid in [decision.hyperliquid_order_id, decision.tp_order_id, decision.sl_order_id]:
+            if oid:
+                order_to_decision[str(oid)] = decision
+
+    # Create missing HyperliquidTrade records for resting orders that later filled
+    for oid, agg in order_aggregates.items():
+        if oid in existing_trade_order_ids:
+            continue  # Already exists
+        if oid not in order_to_decision:
+            continue  # Not from AI decision
+
+        decision = order_to_decision[oid]
+        fills_list = agg["fills"]
+        if not fills_list:
+            continue
+
+        # Aggregate fill data for this order
+        total_qty = Decimal("0")
+        total_value = Decimal("0")
+        latest_time = None
+
+        for fill in fills_list:
+            qty = Decimal(str(fill.get("sz", "0")))
+            px = Decimal(str(fill.get("px", "0")))
+            total_qty += qty
+            total_value += qty * px
+
+            fill_time = fill.get("time")
+            if fill_time and (latest_time is None or fill_time > latest_time):
+                latest_time = fill_time
+
+        if total_qty == 0:
+            continue
+
+        avg_price = total_value / total_qty
+        fill_side = fills_list[0].get("side", "B")
+        side = "buy" if fill_side == "B" else "sell"
+
+        # Parse trade time
+        trade_time = None
+        if latest_time:
+            try:
+                trade_time = datetime.fromtimestamp(latest_time / 1000, tz=timezone.utc)
+            except Exception:
+                trade_time = datetime.utcnow()
+        else:
+            trade_time = datetime.utcnow()
+
+        # Create new HyperliquidTrade record
+        new_trade = HyperliquidTrade(
+            account_id=decision.account_id,
+            environment=environment,
+            wallet_address=decision.wallet_address,
+            symbol=decision.symbol or fills_list[0].get("coin", ""),
+            side=side,
+            quantity=total_qty,
+            price=avg_price,
+            leverage=1,
+            order_id=oid,
+            order_status="filled",
+            trade_value=total_value,
+            fee=agg["total_fee"],
+            trade_time=trade_time,
+        )
+        snapshot_db.add(new_trade)
+        existing_trade_order_ids.add(oid)  # Prevent duplicates in same run
+        result["trades_created"] += 1
+        logger.info(f"Created missing HyperliquidTrade for order {oid}, decision {decision.id}")
 
     for decision in decisions:
         updated = False
