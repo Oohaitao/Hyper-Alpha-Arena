@@ -1976,8 +1976,6 @@ def save_ai_decision(
     hyperliquid_order_id: Optional[str] = None,
     tp_order_id: Optional[str] = None,
     sl_order_id: Optional[str] = None,
-    # Decision source type: "prompt_template" (AI Trader) or "program" (Program Trader)
-    decision_source_type: str = "prompt_template",
 ) -> None:
     """Save AI decision to the decision log"""
     try:
@@ -2052,8 +2050,6 @@ def save_ai_decision(
             hyperliquid_order_id=hyperliquid_order_id,
             tp_order_id=tp_order_id,
             sl_order_id=sl_order_id,
-            # Decision source type for attribution
-            decision_source_type=decision_source_type,
         )
 
         db.add(decision_log)
