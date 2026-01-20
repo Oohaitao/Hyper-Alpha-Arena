@@ -88,8 +88,22 @@ function TradeCard({ trade, selectedAccount }: { trade: ArenaTrade; selectedAcco
     <div className="border rounded bg-muted/30 p-2.5 space-y-1.5">
       <div className="flex items-center justify-between text-xs">
         <div className="flex items-center gap-2">
-          {logo && <img src={logo.src} alt={logo.alt} className="h-4 w-4 rounded-full" />}
-          {selectedAccount === 'all' && <span className="text-muted-foreground">{trade.account_name}</span>}
+          {trade.decision_source_type === 'program' ? (
+            <>
+              <svg className="h-4 w-4 rounded-full" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+                <path d="M508.416 3.584c-260.096 0-243.712 112.64-243.712 112.64l0.512 116.736h248.32v34.816H166.4S0 248.832 0 510.976s145.408 252.928 145.408 252.928h86.528v-121.856S227.328 496.64 374.784 496.64h246.272s138.24 2.048 138.24-133.632V139.776c-0.512 0 20.48-136.192-250.88-136.192zM371.712 82.432c24.576 0 44.544 19.968 44.544 44.544 0 24.576-19.968 44.544-44.544 44.544-24.576 0-44.544-19.968-44.544-44.544-0.512-24.576 19.456-44.544 44.544-44.544z" fill="#3773A5"/>
+                <path d="M515.584 1022.464c260.096 0 243.712-112.64 243.712-112.64l-0.512-116.736H510.976V757.76h346.624s166.4 18.944 166.4-243.2-145.408-252.928-145.408-252.928h-86.528v121.856s4.608 145.408-142.848 145.408h-245.76s-138.24-2.048-138.24 133.632v224.768c0-0.512-20.992 135.168 250.368 135.168z m136.704-78.336c-24.576 0-44.544-19.968-44.544-44.544 0-24.576 19.968-44.544 44.544-44.544 24.576 0 44.544 19.968 44.544 44.544 0.512 24.576-19.456 44.544-44.544 44.544z" fill="#FFD731"/>
+              </svg>
+              <span className="font-semibold text-foreground">{trade.prompt_template_name}</span>
+              <span className="text-muted-foreground">→</span>
+              <span className="text-muted-foreground">{trade.account_name}</span>
+            </>
+          ) : (
+            <>
+              {logo && <img src={logo.src} alt={logo.alt} className="h-4 w-4 rounded-full" />}
+              {selectedAccount === 'all' && <span className="text-muted-foreground">{trade.account_name}</span>}
+            </>
+          )}
         </div>
         <span className="text-muted-foreground">{formatDate(trade.trade_time)}</span>
       </div>

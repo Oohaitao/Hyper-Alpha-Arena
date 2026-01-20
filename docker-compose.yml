@@ -67,6 +67,7 @@ services:
       - ./backend/config:/app/backend/config
       - ./backend/database:/app/backend/database
       - ./backend/factors:/app/backend/factors
+      - ./backend/program_trader:/app/backend/program_trader
       - ./backend/repositories:/app/backend/repositories
       - ./backend/schemas:/app/backend/schemas
       - ./backend/services:/app/backend/services

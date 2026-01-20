@@ -455,6 +455,25 @@ def on_startup():
     initialize_services()
     print("Services initialization completed")
 
+    # Warmup numba JIT compilation for pandas_ta indicators
+    # This prevents timeout on first indicator calculation
+    def warmup_numba():
+        try:
+            from services.technical_indicators import calculate_indicator
+            from database.connection import SessionLocal
+            db = SessionLocal()
+            try:
+                print("[startup] Warming up numba JIT compilation...")
+                calculate_indicator(db, "BTC", "BOLL", "1h")
+                print("[startup] Numba warmup completed")
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"[startup] Numba warmup failed (non-fatal): {e}")
+
+    # Run warmup in background thread to not block startup
+    threading.Thread(target=warmup_numba, daemon=True).start()
+
 
 @app.on_event("shutdown")
 def on_shutdown():
@@ -485,6 +504,7 @@ from api.market_regime_routes import router as market_regime_router
 from api.analytics_routes import router as analytics_router
 from api.trader_data_routes import router as trader_data_router
 from api.prompt_backtest_routes import router as prompt_backtest_router
+from routes.program_routes import router as program_router
 # Removed: AI account routes merged into account_routes (unified AI trader accounts)
 
 app.include_router(market_data_router)
@@ -508,6 +528,7 @@ app.include_router(market_regime_router)
 app.include_router(analytics_router)
 app.include_router(trader_data_router)
 app.include_router(prompt_backtest_router)
+app.include_router(program_router)
 # app.include_router(ai_account_router, prefix="/api")  # Removed - merged into account_router
 
 # Strategy route aliases for frontend compatibility

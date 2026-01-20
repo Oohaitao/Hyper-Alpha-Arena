@@ -13,7 +13,7 @@ from sqlalchemy import func, case, and_, or_
 from sqlalchemy.orm import Session
 
 from database.connection import SessionLocal
-from database.models import AIDecisionLog, Account, PromptTemplate
+from database.models import AIDecisionLog, Account, PromptTemplate, ProgramExecutionLog, TradingProgram
 from database.snapshot_connection import SnapshotSessionLocal
 from database.snapshot_models import HyperliquidTrade, HyperliquidAccountSnapshot
 import logging
@@ -213,45 +213,80 @@ def get_analytics_summary(
     account_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
 ):
-    """Get overall analytics summary."""
-    query = build_base_query(db, start_date, end_date, environment, account_id)
-    decisions = query.all()
-
-    # Get fees for all decisions
+    """Get overall analytics summary (AI Decision + Program Decision combined)."""
+    # === AI Decision data ===
+    ai_query = build_base_query(db, start_date, end_date, environment, account_id)
+    decisions = ai_query.all()
     fee_map = get_fees_for_decisions(decisions)
 
-    # Convert to records for metrics calculation
-    records = []
-    signal_records = []
-    scheduled_records = []
-    unknown_records = []
+    ai_records = []
+    ai_signal_records = []
+    ai_scheduled_records = []
+    ai_unknown_records = []
 
     with_strategy = 0
     with_signal = 0
-    with_pnl = 0
+    ai_with_pnl = 0
 
     for d in decisions:
         pnl = float(d.realized_pnl) if d.realized_pnl else 0
         fee = fee_map.get(d.id, 0.0)
         record = {"pnl": pnl, "fee": fee}
-        records.append(record)
+        ai_records.append(record)
 
         trigger_type = get_trigger_type(d)
         if trigger_type == "signal":
-            signal_records.append(record)
+            ai_signal_records.append(record)
         elif trigger_type == "scheduled":
-            scheduled_records.append(record)
+            ai_scheduled_records.append(record)
         else:
-            unknown_records.append(record)
+            ai_unknown_records.append(record)
 
         if d.prompt_template_id:
             with_strategy += 1
         if d.signal_trigger_id:
             with_signal += 1
         if d.realized_pnl:
-            with_pnl += 1
+            ai_with_pnl += 1
 
-    overview = calculate_metrics(records)
+    # === Program Decision data ===
+    prog_query = build_program_base_query(db, start_date, end_date, environment, account_id)
+    prog_logs = prog_query.all()
+    prog_fee_map = get_fees_for_program_logs(prog_logs)
+
+    prog_records = []
+    prog_signal_records = []
+    prog_scheduled_records = []
+
+    with_program = 0
+    prog_with_signal = 0
+    prog_with_pnl = 0
+
+    for log in prog_logs:
+        pnl = float(log.realized_pnl) if log.realized_pnl else 0
+        fee = prog_fee_map.get(log.id, 0.0)
+
+        if pnl == 0:
+            continue
+
+        record = {"pnl": pnl, "fee": fee}
+        prog_records.append(record)
+
+        trigger_type = log.trigger_type or "scheduled"
+        if trigger_type == "signal":
+            prog_signal_records.append(record)
+        else:
+            prog_scheduled_records.append(record)
+
+        if log.program_id:
+            with_program += 1
+        if log.signal_pool_id:
+            prog_with_signal += 1
+        prog_with_pnl += 1
+
+    # === Combined metrics ===
+    all_records = ai_records + prog_records
+    overview = calculate_metrics(all_records)
 
     return {
         "period": {
@@ -261,22 +296,34 @@ def get_analytics_summary(
         "overview": overview,
         "data_completeness": {
             "total_decisions": len(decisions),
+            "total_program_executions": len(prog_logs),
             "with_strategy": with_strategy,
-            "with_signal": with_signal,
-            "with_pnl": with_pnl,
+            "with_program": with_program,
+            "with_signal": with_signal + prog_with_signal,
+            "with_pnl": ai_with_pnl + prog_with_pnl,
         },
         "by_trigger_type": {
             "signal": {
-                "count": len(signal_records),
-                "net_pnl": round(sum(r["pnl"] - r["fee"] for r in signal_records), 2),
+                "count": len(ai_signal_records) + len(prog_signal_records),
+                "net_pnl": round(sum(r["pnl"] - r["fee"] for r in ai_signal_records + prog_signal_records), 2),
             },
             "scheduled": {
-                "count": len(scheduled_records),
-                "net_pnl": round(sum(r["pnl"] - r["fee"] for r in scheduled_records), 2),
+                "count": len(ai_scheduled_records) + len(prog_scheduled_records),
+                "net_pnl": round(sum(r["pnl"] - r["fee"] for r in ai_scheduled_records + prog_scheduled_records), 2),
             },
             "unknown": {
-                "count": len(unknown_records),
-                "net_pnl": round(sum(r["pnl"] - r["fee"] for r in unknown_records), 2),
+                "count": len(ai_unknown_records),
+                "net_pnl": round(sum(r["pnl"] - r["fee"] for r in ai_unknown_records), 2),
+            },
+        },
+        "by_source": {
+            "ai_decision": {
+                "count": len(ai_records),
+                "net_pnl": round(sum(r["pnl"] - r["fee"] for r in ai_records), 2),
+            },
+            "program": {
+                "count": len(prog_records),
+                "net_pnl": round(sum(r["pnl"] - r["fee"] for r in prog_records), 2),
             },
         },
     }
@@ -1303,3 +1350,370 @@ def get_trade_replay_kline(
             "end": end_time.isoformat(),
         }
     }
+
+
+# ============== Program Analytics Helper Functions ==============
+
+def get_fees_for_program_logs(logs: List[ProgramExecutionLog]) -> Dict[int, float]:
+    """
+    Batch query HyperliquidTrade to get total fees for each program execution log.
+    Returns a dict mapping log_id -> total_fee.
+    PnL is read directly from ProgramExecutionLog.realized_pnl field.
+    """
+    if not logs:
+        return {}
+
+    # Collect all order IDs (main, tp, sl)
+    order_ids = set()
+    log_orders: Dict[int, List[str]] = {}  # log_id -> list of order_ids
+
+    for log in logs:
+        orders = []
+        if log.hyperliquid_order_id:
+            order_ids.add(log.hyperliquid_order_id)
+            orders.append(log.hyperliquid_order_id)
+        if log.tp_order_id:
+            order_ids.add(log.tp_order_id)
+            orders.append(log.tp_order_id)
+        if log.sl_order_id:
+            order_ids.add(log.sl_order_id)
+            orders.append(log.sl_order_id)
+        log_orders[log.id] = orders
+
+    if not order_ids:
+        return {log.id: 0.0 for log in logs}
+
+    # Batch query fees from HyperliquidTrade
+    fee_map: Dict[str, float] = {}
+    try:
+        snapshot_db = SnapshotSessionLocal()
+        trades = snapshot_db.query(HyperliquidTrade).filter(
+            HyperliquidTrade.order_id.in_(list(order_ids))
+        ).all()
+        for t in trades:
+            if t.order_id:
+                fee_map[str(t.order_id)] = float(t.fee or 0)
+        snapshot_db.close()
+    except Exception as e:
+        logger.warning(f"Failed to fetch fees from HyperliquidTrade: {e}")
+
+    # Calculate total fee for each log
+    result: Dict[int, float] = {}
+    for log in logs:
+        total_fee = 0.0
+        for oid in log_orders.get(log.id, []):
+            total_fee += fee_map.get(oid, 0.0)
+        result[log.id] = total_fee
+
+    return result
+
+
+def build_program_base_query(
+    db: Session,
+    start_date: Optional[date],
+    end_date: Optional[date],
+    environment: Optional[str],
+    account_id: Optional[int],
+):
+    """Build base query for program execution logs with common filters.
+
+    Similar to build_base_query for AIDecisionLog, but for ProgramExecutionLog.
+    Only includes executions with non-zero realized_pnl (closed positions).
+    """
+    query = db.query(ProgramExecutionLog).filter(
+        ProgramExecutionLog.success == True,
+        ProgramExecutionLog.decision_action.in_(["buy", "sell", "close"]),
+        ProgramExecutionLog.realized_pnl.isnot(None),  # Exclude unsync trades
+        ProgramExecutionLog.realized_pnl != 0,  # Exclude opening trades (no settled PnL)
+    )
+
+    if start_date:
+        query = query.filter(ProgramExecutionLog.created_at >= datetime.combine(start_date, datetime.min.time()))
+    if end_date:
+        query = query.filter(ProgramExecutionLog.created_at <= datetime.combine(end_date, datetime.max.time()))
+    if account_id:
+        query = query.filter(ProgramExecutionLog.account_id == account_id)
+
+    # Filter by environment directly (like AIDecisionLog.hyperliquid_environment)
+    if environment and environment != "all":
+        query = query.filter(ProgramExecutionLog.environment == environment)
+
+    return query
+
+
+# ============== Program Analytics API Endpoints ==============
+
+@router.get("/program-summary")
+def get_program_analytics_summary(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    environment: Optional[str] = Query("all"),
+    account_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Get overall program analytics summary."""
+    query = build_program_base_query(db, start_date, end_date, environment, account_id)
+    logs = query.all()
+
+    # Get fees for all logs (PnL is read from log.realized_pnl)
+    fee_map = get_fees_for_program_logs(logs)
+
+    records = []
+    signal_records = []
+    scheduled_records = []
+
+    with_program = 0
+    with_signal = 0
+
+    for log in logs:
+        pnl = float(log.realized_pnl) if log.realized_pnl else 0
+        fee = fee_map.get(log.id, 0.0)
+        record = {"pnl": pnl, "fee": fee}
+        records.append(record)
+
+        trigger_type = log.trigger_type or "unknown"
+        if trigger_type == "signal":
+            signal_records.append(record)
+        else:
+            scheduled_records.append(record)
+
+        if log.program_id:
+            with_program += 1
+        if log.signal_pool_id:
+            with_signal += 1
+
+    overview = calculate_metrics(records)
+
+    return {
+        "period": {
+            "start": start_date.isoformat() if start_date else None,
+            "end": end_date.isoformat() if end_date else None,
+        },
+        "overview": overview,
+        "data_completeness": {
+            "total_executions": len(logs),
+            "with_program": with_program,
+            "with_signal": with_signal,
+            "with_pnl": len(records),
+        },
+        "by_trigger_type": {
+            "signal": {
+                "count": len(signal_records),
+                "net_pnl": round(sum(r["pnl"] - r["fee"] for r in signal_records), 2),
+            },
+            "scheduled": {
+                "count": len(scheduled_records),
+                "net_pnl": round(sum(r["pnl"] - r["fee"] for r in scheduled_records), 2),
+            },
+        },
+    }
+
+
+@router.get("/program-by-symbol")
+def get_program_analytics_by_symbol(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    environment: Optional[str] = Query("all"),
+    account_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Get program analytics grouped by trading symbol."""
+    query = build_program_base_query(db, start_date, end_date, environment, account_id)
+    logs = query.all()
+
+    fee_map = get_fees_for_program_logs(logs)
+
+    # Group by symbol
+    by_symbol: Dict[Optional[str], List[Dict]] = {}
+
+    for log in logs:
+        pnl = float(log.realized_pnl) if log.realized_pnl else 0
+        fee = fee_map.get(log.id, 0.0)
+
+        symbol = log.decision_symbol
+        record = {"pnl": pnl, "fee": fee, "trigger_type": log.trigger_type or "scheduled"}
+
+        if symbol not in by_symbol:
+            by_symbol[symbol] = []
+        by_symbol[symbol].append(record)
+
+    # Build response
+    items = []
+    for symbol, records in by_symbol.items():
+        if symbol is None:
+            continue
+
+        signal_records = [r for r in records if r["trigger_type"] == "signal"]
+        scheduled_records = [r for r in records if r["trigger_type"] != "signal"]
+
+        items.append({
+            "symbol": symbol,
+            "metrics": calculate_metrics(records),
+            "by_trigger_type": {
+                "signal": {"count": len(signal_records), "net_pnl": round(sum(r["pnl"] - r["fee"] for r in signal_records), 2)},
+                "scheduled": {"count": len(scheduled_records), "net_pnl": round(sum(r["pnl"] - r["fee"] for r in scheduled_records), 2)},
+            },
+        })
+
+    items.sort(key=lambda x: x["metrics"]["net_pnl"], reverse=True)
+
+    unattributed_records = by_symbol.get(None, [])
+
+    return {
+        "items": items,
+        "unattributed": {
+            "count": len(unattributed_records),
+            "metrics": calculate_metrics(unattributed_records) if unattributed_records else None,
+        },
+    }
+
+
+@router.get("/program-by-program")
+def get_program_analytics_by_program(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    environment: Optional[str] = Query("all"),
+    account_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Get program analytics grouped by trading program."""
+    query = build_program_base_query(db, start_date, end_date, environment, account_id)
+    logs = query.all()
+
+    fee_map = get_fees_for_program_logs(logs)
+
+    by_program: Dict[Optional[int], List[Dict]] = {}
+    program_names: Dict[int, str] = {}
+
+    for log in logs:
+        pnl = float(log.realized_pnl) if log.realized_pnl else 0
+        fee = fee_map.get(log.id, 0.0)
+
+        program_id = log.program_id
+        record = {"pnl": pnl, "fee": fee, "trigger_type": log.trigger_type or "scheduled"}
+
+        if program_id not in by_program:
+            by_program[program_id] = []
+        by_program[program_id].append(record)
+
+        if program_id and log.program_name:
+            program_names[program_id] = log.program_name
+
+    program_ids = [pid for pid in by_program.keys() if pid is not None]
+    if program_ids:
+        programs = db.query(TradingProgram).filter(TradingProgram.id.in_(program_ids)).all()
+        for p in programs:
+            program_names[p.id] = p.name
+
+    items = []
+    for program_id, records in by_program.items():
+        if program_id is None:
+            continue
+
+        signal_records = [r for r in records if r["trigger_type"] == "signal"]
+        scheduled_records = [r for r in records if r["trigger_type"] != "signal"]
+
+        items.append({
+            "program_id": program_id,
+            "program_name": program_names.get(program_id, f"Program {program_id}"),
+            "metrics": calculate_metrics(records),
+            "by_trigger_type": {
+                "signal": {"count": len(signal_records), "net_pnl": round(sum(r["pnl"] - r["fee"] for r in signal_records), 2)},
+                "scheduled": {"count": len(scheduled_records), "net_pnl": round(sum(r["pnl"] - r["fee"] for r in scheduled_records), 2)},
+            },
+        })
+
+    items.sort(key=lambda x: x["metrics"]["net_pnl"], reverse=True)
+    unattributed_records = by_program.get(None, [])
+
+    return {
+        "items": items,
+        "unattributed": {
+            "count": len(unattributed_records),
+            "metrics": calculate_metrics(unattributed_records) if unattributed_records else None,
+        },
+    }
+
+
+@router.get("/program-by-trigger-type")
+def get_program_analytics_by_trigger_type(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    environment: Optional[str] = Query("all"),
+    account_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Get program analytics grouped by trigger type."""
+    query = build_program_base_query(db, start_date, end_date, environment, account_id)
+    logs = query.all()
+
+    fee_map = get_fees_for_program_logs(logs)
+
+    by_trigger: Dict[str, List[Dict]] = {"signal": [], "scheduled": []}
+
+    for log in logs:
+        pnl = float(log.realized_pnl) if log.realized_pnl else 0
+        fee = fee_map.get(log.id, 0.0)
+
+        trigger_type = log.trigger_type if log.trigger_type == "signal" else "scheduled"
+        record = {"pnl": pnl, "fee": fee}
+        by_trigger[trigger_type].append(record)
+
+    items = []
+    for trigger_type in ["signal", "scheduled"]:
+        records = by_trigger[trigger_type]
+        if records:
+            items.append({
+                "trigger_type": trigger_type,
+                "metrics": calculate_metrics(records),
+            })
+
+    items.sort(key=lambda x: x["metrics"]["trade_count"], reverse=True)
+
+    return {"items": items}
+
+
+@router.get("/program-by-operation")
+def get_program_analytics_by_operation(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    environment: Optional[str] = Query("all"),
+    account_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Get program analytics grouped by operation type."""
+    query = build_program_base_query(db, start_date, end_date, environment, account_id)
+    logs = query.all()
+
+    fee_map = get_fees_for_program_logs(logs)
+
+    by_operation: Dict[str, List[Dict]] = {}
+
+    for log in logs:
+        pnl = float(log.realized_pnl) if log.realized_pnl else 0
+        fee = fee_map.get(log.id, 0.0)
+
+        operation = log.decision_action or "unknown"
+        record = {"pnl": pnl, "fee": fee, "trigger_type": log.trigger_type or "scheduled"}
+
+        if operation not in by_operation:
+            by_operation[operation] = []
+        by_operation[operation].append(record)
+
+    items = []
+    for operation, records in by_operation.items():
+        signal_records = [r for r in records if r["trigger_type"] == "signal"]
+        scheduled_records = [r for r in records if r["trigger_type"] != "signal"]
+
+        items.append({
+            "operation": operation,
+            "metrics": calculate_metrics(records),
+            "by_trigger_type": {
+                "signal": {"count": len(signal_records), "net_pnl": round(sum(r["pnl"] - r["fee"] for r in signal_records), 2)},
+                "scheduled": {"count": len(scheduled_records), "net_pnl": round(sum(r["pnl"] - r["fee"] for r in scheduled_records), 2)},
+            },
+        })
+
+    items.sort(key=lambda x: x["metrics"]["trade_count"], reverse=True)
+
+    return {"items": items}

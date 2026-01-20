@@ -13,7 +13,7 @@ import logging
 from database.connection import SessionLocal
 from database.models import Account, Position, Trade, CryptoPrice, AccountAssetSnapshot, HyperliquidWallet
 from services.asset_curve_calculator import invalidate_asset_curve_cache
-from services.ai_decision_service import build_chat_completion_endpoints, _extract_text_from_message
+from services.ai_decision_service import build_chat_completion_endpoints, detect_api_format, _extract_text_from_message
 from schemas.account import StrategyConfig, StrategyConfigUpdate
 from repositories.strategy_repo import get_strategy_by_account, upsert_strategy
 from services.trading_strategy import hyper_strategy_manager
@@ -763,103 +763,112 @@ async def test_llm_connection(payload: dict):
     try:
         import requests
         import json
-        
+
         model = payload.get("model", "gpt-3.5-turbo")
         base_url = payload.get("base_url", "https://api.openai.com/v1")
         api_key = payload.get("api_key", "")
-        
+
         if not api_key:
             return {"success": False, "message": "API key is required"}
-        
+
         if not base_url:
             return {"success": False, "message": "Base URL is required"}
-        
+
         # Clean up base_url - ensure it doesn't end with slash
         if base_url.endswith('/'):
             base_url = base_url.rstrip('/')
-        
+
+        # Detect API format from URL
+        endpoint, api_format = detect_api_format(base_url)
+        if not endpoint:
+            return {"success": False, "message": "Invalid base URL"}
+
         # Test the connection with a simple completion request
         try:
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}"
-            }
-            
-            # Use OpenAI-compatible chat completions format
-            # Build payload with appropriate parameters based on model type
             model_lower = model.lower()
 
             # Reasoning models that don't support temperature parameter
-            # Support multi-vendor reasoning models: OpenAI, DeepSeek, Qwen, Claude, Gemini, Grok
             is_reasoning_model = any(x in model_lower for x in [
-                'gpt-5', 'o1-preview', 'o1-mini', 'o1-', 'o3-', 'o4-',  # OpenAI
-                'deepseek-r1', 'deepseek-reasoner',  # DeepSeek
-                'qwq', 'qwen-plus-thinking', 'qwen-max-thinking', 'qwen3-thinking', 'qwen-turbo-thinking',  # Qwen
-                'claude-4', 'claude-sonnet-4-5',  # Claude (extended thinking)
-                'gemini-2.5', 'gemini-3', 'gemini-2.0-flash-thinking',  # Gemini (thinking mode)
-                'grok-3-mini'  # Grok (only mini has reasoning_content)
+                'gpt-5', 'o1-preview', 'o1-mini', 'o1-', 'o3-', 'o4-',
+                'deepseek-r1', 'deepseek-reasoner',
+                'qwq', 'qwen-plus-thinking', 'qwen-max-thinking', 'qwen3-thinking', 'qwen-turbo-thinking',
+                'claude-4', 'claude-sonnet-4-5',
+                'gemini-2.5', 'gemini-3', 'gemini-2.0-flash-thinking',
+                'grok-3-mini'
             ])
 
-            # o1 series specifically doesn't support system messages
             is_o1_series = any(x in model_lower for x in ['o1-preview', 'o1-mini', 'o1-'])
-
-            # New models that use max_completion_tokens instead of max_tokens
             is_new_model = is_reasoning_model or any(x in model_lower for x in ['gpt-4o'])
 
-            # o1 series models don't support system messages
-            if is_o1_series:
+            if api_format == 'anthropic':
+                # Anthropic native format
+                headers = {
+                    "Content-Type": "application/json",
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01"
+                }
                 payload_data = {
                     "model": model,
+                    "max_tokens": 1024,
                     "messages": [
                         {"role": "user", "content": "Say 'Connection test successful' if you can read this."}
                     ]
                 }
             else:
-                payload_data = {
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": "You are a helpful assistant."},
-                        {"role": "user", "content": "Say 'Connection test successful' if you can read this."}
-                    ]
+                # OpenAI compatible format
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {api_key}"
                 }
+                if is_o1_series:
+                    payload_data = {
+                        "model": model,
+                        "messages": [
+                            {"role": "user", "content": "Say 'Connection test successful' if you can read this."}
+                        ]
+                    }
+                else:
+                    payload_data = {
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": "You are a helpful assistant."},
+                            {"role": "user", "content": "Say 'Connection test successful' if you can read this."}
+                        ]
+                    }
 
-            # Reasoning models (GPT-5, o1, o3, o4) don't support custom temperature
-            # Only add temperature parameter for non-reasoning models
-            if not is_reasoning_model:
-                payload_data["temperature"] = 0
+                if not is_reasoning_model:
+                    payload_data["temperature"] = 0
 
-            # Use max_completion_tokens for newer models
-            # Use max_tokens for older models (GPT-3.5, GPT-4, GPT-4-turbo, Deepseek)
-            # Modern models have large context windows, so we can be generous with token limits
-            if is_new_model:
-                # Reasoning models (GPT-5/o1) need more tokens for internal reasoning
-                payload_data["max_completion_tokens"] = 2000
+                if is_new_model:
+                    payload_data["max_completion_tokens"] = 2000
+                else:
+                    payload_data["max_tokens"] = 2000
+
+                if 'gpt-5' in model_lower:
+                    payload_data["reasoning_effort"] = "low"
+
+            # For Anthropic format, use the detected endpoint directly
+            # For OpenAI format, use build_chat_completion_endpoints for fallback support
+            if api_format == 'anthropic':
+                endpoints_to_try = [endpoint]
             else:
-                # Regular models (GPT-4, Deepseek, Claude, etc.)
-                payload_data["max_tokens"] = 2000
-
-            # For GPT-5 series, set reasoning_effort to low for faster test
-            # Valid values: none, low, medium, high (NOT minimal)
-            if 'gpt-5' in model_lower:
-                payload_data["reasoning_effort"] = "low"
-
-            endpoints = build_chat_completion_endpoints(base_url, model)
-            if not endpoints:
-                return {"success": False, "message": "Invalid base URL"}
+                endpoints_to_try = build_chat_completion_endpoints(base_url, model)
+                if not endpoints_to_try:
+                    return {"success": False, "message": "Invalid base URL"}
 
             last_failure_message = "Connection test failed"
 
-            for idx, endpoint in enumerate(endpoints):
+            for idx, ep in enumerate(endpoints_to_try):
                 try:
                     response = requests.post(
-                        endpoint,
+                        ep,
                         headers=headers,
                         json=payload_data,
                         timeout=10.0,
-                        verify=False  # Disable SSL verification for custom AI endpoints
+                        verify=False
                     )
                 except requests.ConnectionError:
-                    last_failure_message = f"Failed to connect to {endpoint}. Please check the base URL."
+                    last_failure_message = f"Failed to connect to {ep}. Please check the base URL."
                     continue
                 except requests.Timeout:
                     last_failure_message = "Request timed out. The LLM service may be unavailable."
@@ -872,45 +881,59 @@ async def test_llm_connection(payload: dict):
                 if response.status_code == 200:
                     result = response.json()
 
-                    # Extract text from OpenAI-compatible response format
-                    if "choices" in result and len(result["choices"]) > 0:
-                        choice = result["choices"][0]
-                        message = choice.get("message", {})
-                        finish_reason = choice.get("finish_reason", "")
-
-                        # Get content from message
-                        raw_content = message.get("content")
-                        content = _extract_text_from_message(raw_content)
-
-                        # For reasoning models (GPT-5, o1), check reasoning field if content is empty
-                        if not content and is_reasoning_model:
-                            reasoning = _extract_text_from_message(message.get("reasoning"))
-                            if reasoning:
-                                logger.info(f"LLM test successful for model {model} at {endpoint} (reasoning model)")
-                                snippet = reasoning[:100] + "..." if len(reasoning) > 100 else reasoning
-                                return {
-                                    "success": True,
-                                    "message": f"Connection successful! Model {model} (reasoning model) responded correctly.",
-                                    "response": f"[Reasoning: {snippet}]"
-                                }
-
-                        # Standard content check
+                    if api_format == 'anthropic':
+                        # Anthropic response format: {"content": [{"type": "text", "text": "..."}], ...}
+                        content_list = result.get("content", [])
+                        content = ""
+                        for item in content_list:
+                            if isinstance(item, dict) and item.get("type") == "text":
+                                content = item.get("text", "")
+                                break
                         if content:
-                            logger.info(f"LLM test successful for model {model} at {endpoint}")
+                            logger.info(f"LLM test successful for model {model} at {ep} (Anthropic format)")
                             return {
                                 "success": True,
-                                "message": f"Connection successful! Model {model} responded correctly.",
+                                "message": f"Connection successful! Model {model} responded correctly (Anthropic API).",
                                 "response": content
                             }
-
-                        # If still no content, show more debug info
-                        logger.warning(f"LLM response has empty content. finish_reason={finish_reason}, full_message={message}")
-                        return {
-                            "success": False,
-                            "message": f"LLM responded but with empty content (finish_reason: {finish_reason}). Try increasing token limit or using a different model."
-                        }
+                        else:
+                            return {"success": False, "message": "Anthropic API responded but with empty content."}
                     else:
-                        return {"success": False, "message": "Unexpected response format from LLM"}
+                        # OpenAI-compatible response format
+                        if "choices" in result and len(result["choices"]) > 0:
+                            choice = result["choices"][0]
+                            message = choice.get("message", {})
+                            finish_reason = choice.get("finish_reason", "")
+
+                            raw_content = message.get("content")
+                            content = _extract_text_from_message(raw_content)
+
+                            if not content and is_reasoning_model:
+                                reasoning = _extract_text_from_message(message.get("reasoning"))
+                                if reasoning:
+                                    logger.info(f"LLM test successful for model {model} at {ep} (reasoning model)")
+                                    snippet = reasoning[:100] + "..." if len(reasoning) > 100 else reasoning
+                                    return {
+                                        "success": True,
+                                        "message": f"Connection successful! Model {model} (reasoning model) responded correctly.",
+                                        "response": f"[Reasoning: {snippet}]"
+                                    }
+
+                            if content:
+                                logger.info(f"LLM test successful for model {model} at {ep}")
+                                return {
+                                    "success": True,
+                                    "message": f"Connection successful! Model {model} responded correctly.",
+                                    "response": content
+                                }
+
+                            logger.warning(f"LLM response has empty content. finish_reason={finish_reason}, full_message={message}")
+                            return {
+                                "success": False,
+                                "message": f"LLM responded but with empty content (finish_reason: {finish_reason}). Try increasing token limit or using a different model."
+                            }
+                        else:
+                            return {"success": False, "message": "Unexpected response format from LLM"}
                 elif response.status_code == 401:
                     return {"success": False, "message": "Authentication failed. Please check your API key."}
                 elif response.status_code == 403:
@@ -919,8 +942,8 @@ async def test_llm_connection(payload: dict):
                     return {"success": False, "message": "Rate limit exceeded. Please try again later."}
                 elif response.status_code == 404:
                     last_failure_message = f"Model '{model}' not found or endpoint not available."
-                    if idx < len(endpoints) - 1:
-                        logger.info(f"Endpoint {endpoint} returned 404, trying alternative path")
+                    if idx < len(endpoints_to_try) - 1:
+                        logger.info(f"Endpoint {ep} returned 404, trying alternative path")
                         continue
                     return {"success": False, "message": last_failure_message}
                 else:

@@ -64,6 +64,25 @@ const HowToUseIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
+// Program Trader icon (Python logo - official colors) - used in desktop sidebar
+const ProgramTraderIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+    <path d="M508.416 3.584c-260.096 0-243.712 112.64-243.712 112.64l0.512 116.736h248.32v34.816H166.4S0 248.832 0 510.976s145.408 252.928 145.408 252.928h86.528v-121.856S227.328 496.64 374.784 496.64h246.272s138.24 2.048 138.24-133.632V139.776c-0.512 0 20.48-136.192-250.88-136.192zM371.712 82.432c24.576 0 44.544 19.968 44.544 44.544 0 24.576-19.968 44.544-44.544 44.544-24.576 0-44.544-19.968-44.544-44.544-0.512-24.576 19.456-44.544 44.544-44.544z" fill="#3773A5"/>
+    <path d="M515.584 1022.464c260.096 0 243.712-112.64 243.712-112.64l-0.512-116.736H510.976V757.76h346.624s166.4 18.944 166.4-243.2-145.408-252.928-145.408-252.928h-86.528v121.856s4.608 145.408-142.848 145.408h-245.76s-138.24-2.048-138.24 133.632v224.768c0-0.512-20.992 135.168 250.368 135.168z m136.704-78.336c-24.576 0-44.544-19.968-44.544-44.544 0-24.576 19.968-44.544 44.544-44.544 24.576 0 44.544 19.968 44.544 44.544 0.512 24.576-19.456 44.544-44.544 44.544z" fill="#FFD731"/>
+  </svg>
+)
+
+// Mobile Programs tab icon (workflow/automation style)
+const MobileProgramsIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 1024 1024" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M800 738.667h-0.107L512 738.24c-17.707 0-32-14.4-32-32 0-17.707 14.293-32 32-32l288 0.32c52.907 0 96-43.093 96-96V432.427c0-52.907-43.093-96-96-96h-80c-17.707 0-32-14.294-32-32s14.293-32 32-32h80c88.213 0 160 71.786 160 160v146.24c0 88.213-71.787 160-160 160z m-509.547 0.106H224c-88.213 0-160-71.786-160-160v-146.24c0-88.213 71.787-160 160-160h0.107l287.893 0.32c17.707 0 32 14.4 32 32 0 17.707-14.293 32-32 32l-288-0.32c-52.907 0-96 43.094-96 96v146.24c0 52.907 43.093 96 96 96h66.453c17.707 0 32 14.294 32 32s-14.293 32-32 32z"/>
+    <path d="M592 537.707H422.827c-17.707 0-32-14.294-32-32s14.293-32 32-32H592c52.907 0 96-43.094 96-96V231.253c0-52.906-43.093-96-96-96h-20.48c-17.707 0-32-14.293-32-32s14.293-32 32-32H592c88.213 0 160 71.787 160 160V377.6c0 88.32-71.787 160.107-160 160.107z"/>
+    <path d="M540.267 953.6H432c-88.213 0-160-71.787-160-160v-160c0-88.213 71.787-160 160-160h144v64H432c-52.907 0-96 43.093-96 96v160c0 52.907 43.093 96 96 96h108.267v64z"/>
+    <path d="M592 953.6h-80v-64h80c52.907 0 96-43.093 96-96V683.84h64V793.6c0 88.213-71.787 160-160 160zM350.827 327.36h-64v-96c0-88.213 71.786-160 160-160H576v64H446.827c-52.907 0-96 43.093-96 96v96z"/>
+    <path d="M405.867 207.04a41.6 41.6 0 1 0 83.2 0 41.6 41.6 0 1 0-83.2 0zM553.813 810.453a41.6 41.6 0 1 0 83.2 0 41.6 41.6 0 1 0-83.2 0z"/>
+  </svg>
+)
+
 // English language icon (En)
 const EnglishIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
@@ -97,6 +116,7 @@ export default function Sidebar({ currentPage = 'comprehensive', onPageChange, o
     { label: t('sidebar.dashboard'), page: 'comprehensive', icon: BarChart3 },
     { label: t('sidebar.aiTrader', 'AI Trader'), page: 'trader-management', icon: AITraderIcon },
     { label: t('sidebar.prompts', 'Prompts'), page: 'prompt-management', icon: NotebookPen },
+    { label: t('sidebar.programTrader', 'Program Trader'), page: 'program-trader', icon: ProgramTraderIcon },
     { label: t('sidebar.signals', 'Signals'), page: 'signal-management', icon: SignalIcon },
     { label: t('sidebar.attribution', 'Attribution'), page: 'attribution', icon: AttributionIcon },
     { label: t('sidebar.manualTrading', 'Manual Trading'), page: 'hyperliquid', icon: Coins },
@@ -164,7 +184,7 @@ export default function Sidebar({ currentPage = 'comprehensive', onPageChange, o
 
       </aside>
 
-      {/* Mobile Navigation - Only 3 tabs: Dashboard, K-Lines, Chat */}
+      {/* Mobile Navigation - 4 tabs: Dashboard, K-Lines, Chat, Programs */}
       <nav className="md:hidden flex flex-row items-center justify-around fixed bottom-0 left-0 right-0 bg-background border-t h-16 px-2 z-50">
         <button
           className={`flex flex-col items-center justify-center flex-1 h-12 rounded-lg transition-colors ${
@@ -201,6 +221,18 @@ export default function Sidebar({ currentPage = 'comprehensive', onPageChange, o
         >
           <MessageSquare className="w-5 h-5" />
           <span className="text-xs mt-1">Chat</span>
+        </button>
+        <button
+          className={`flex flex-col items-center justify-center flex-1 h-12 rounded-lg transition-colors ${
+            currentPage === 'program-trader'
+              ? 'bg-secondary/80 text-secondary-foreground'
+              : 'hover:bg-muted text-muted-foreground'
+          }`}
+          onClick={() => onPageChange?.('program-trader')}
+          title="Programs"
+        >
+          <MobileProgramsIcon className="w-5 h-5" />
+          <span className="text-xs mt-1">Programs</span>
         </button>
       </nav>
     </>

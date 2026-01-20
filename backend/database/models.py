@@ -344,13 +344,17 @@ class AIDecisionLog(Base):
     wallet_address = Column(String(100), nullable=True, index=True)
 
     # Decision tracking fields for analysis
-    prompt_template_id = Column(Integer, nullable=True, index=True)  # Link to strategy/prompt template
+    prompt_template_id = Column(Integer, nullable=True, index=True)  # Link to strategy/prompt template OR program
     signal_trigger_id = Column(Integer, nullable=True, index=True)  # Link to signal trigger
     hyperliquid_order_id = Column(String(100), nullable=True, index=True)  # Main order ID from Hyperliquid
     tp_order_id = Column(String(100), nullable=True)  # Take profit order ID
     sl_order_id = Column(String(100), nullable=True)  # Stop loss order ID
     realized_pnl = Column(DECIMAL(18, 6), nullable=True)  # Realized PnL (filled on user refresh)
     pnl_updated_at = Column(TIMESTAMP, nullable=True)  # When PnL was last updated
+
+    # Decision source type: "prompt_template" (AI Trader) or "program" (Program Trader)
+    # NULL for old data, treated as "prompt_template" for backward compatibility
+    decision_source_type = Column(String(20), nullable=True)
 
     # Relationships
     account = relationship("Account")
@@ -736,6 +740,55 @@ class AiAttributionMessage(Base):
     conversation = relationship("AiAttributionConversation", back_populates="messages")
 
 
+class AiProgramConversation(Base):
+    """AI Program Coding Conversation Sessions"""
+    __tablename__ = "ai_program_conversations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    program_id = Column(Integer, ForeignKey("trading_programs.id"), nullable=True, index=True)
+    title = Column(String(200), nullable=False, default="New Program")
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp(), index=True)
+    updated_at = Column(
+        TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
+    )
+
+    # Relationships
+    user = relationship("User")
+    program = relationship("TradingProgram")
+    messages = relationship(
+        "AiProgramMessage",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="AiProgramMessage.created_at"
+    )
+
+
+class AiProgramMessage(Base):
+    """Messages in AI Program Coding Conversations"""
+    __tablename__ = "ai_program_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("ai_program_conversations.id"), nullable=False, index=True)
+    role = Column(String(20), nullable=False)  # "user" or "assistant"
+    content = Column(Text, nullable=False)  # Message content (markdown)
+
+    # For assistant messages: code suggestion that needs user confirmation
+    code_suggestion = Column(Text, nullable=True)  # Python code to save (requires user confirm)
+
+    # Reasoning and tool call logs
+    reasoning_snapshot = Column(Text, nullable=True)  # AI reasoning process (thinking)
+    tool_calls_log = Column(Text, nullable=True)  # JSON: tool calls and results
+
+    # Completion status for retry/continue functionality
+    is_complete = Column(Boolean, default=True)  # False = interrupted, can retry
+
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp(), index=True)
+
+    # Relationships
+    conversation = relationship("AiProgramConversation", back_populates="messages")
+
+
 # ============================================================================
 # Market Flow Data Tables (for fund flow analysis)
 # ============================================================================
@@ -976,6 +1029,117 @@ class PromptBacktestItem(Base):
     # Relationships
     task = relationship("PromptBacktestTask", back_populates="items")
     original_decision_log = relationship("AIDecisionLog")
+
+
+# ============================================================================
+# Program Trader Tables
+# ============================================================================
+
+class TradingProgram(Base):
+    """Trading program (reusable strategy code template)"""
+    __tablename__ = "trading_programs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    # Program definition
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    code = Column(Text, nullable=False)  # Python strategy code
+    params = Column(Text, nullable=True)  # JSON: default parameters
+    icon = Column(String(50), nullable=True)  # Icon identifier for UI
+
+    # Backtest results cache
+    last_backtest_result = Column(Text, nullable=True)  # JSON
+    last_backtest_at = Column(TIMESTAMP, nullable=True)
+
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    updated_at = Column(
+        TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
+    )
+
+    # Relationships
+    user = relationship("User")
+    bindings = relationship("AccountProgramBinding", back_populates="program")
+    execution_logs = relationship("ProgramExecutionLog", back_populates="program", passive_deletes=True)
+
+
+class AccountProgramBinding(Base):
+    """Binding between AI Trader (Account) and Trading Program with trigger config"""
+    __tablename__ = "account_program_bindings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False, index=True)
+    program_id = Column(Integer, ForeignKey("trading_programs.id"), nullable=False, index=True)
+
+    # Trigger configuration
+    signal_pool_ids = Column(Text, nullable=True)  # JSON: [1, 2, 3]
+    trigger_interval = Column(Integer, nullable=False, default=300)  # seconds
+    scheduled_trigger_enabled = Column(Boolean, nullable=False, default=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    last_trigger_at = Column(TIMESTAMP, nullable=True)
+
+    # Custom params override (optional, overrides program.params)
+    params_override = Column(Text, nullable=True)  # JSON
+
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    updated_at = Column(
+        TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
+    )
+
+    # Relationships
+    account = relationship("Account")
+    program = relationship("TradingProgram", back_populates="bindings")
+    execution_logs = relationship("ProgramExecutionLog", back_populates="binding")
+
+
+class ProgramExecutionLog(Base):
+    """Execution log for trading programs"""
+    __tablename__ = "program_execution_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    binding_id = Column(Integer, ForeignKey("account_program_bindings.id", ondelete="SET NULL"), nullable=True, index=True)
+    account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False, index=True)
+    program_id = Column(Integer, ForeignKey("trading_programs.id", ondelete="SET NULL"), nullable=True, index=True)
+    program_name = Column(String(200), nullable=True)  # Stored for history when program is deleted
+
+    # Trigger info
+    trigger_type = Column(String(20), nullable=False)  # "signal" or "scheduled"
+    trigger_symbol = Column(String(20), nullable=True)
+    signal_pool_id = Column(Integer, nullable=True)  # Which signal pool triggered
+    wallet_address = Column(String(100), nullable=True)  # Which wallet was used
+
+    # Execution result
+    success = Column(Boolean, nullable=False)
+    decision_action = Column(String(20), nullable=True)  # buy/sell/close/hold
+    decision_symbol = Column(String(20), nullable=True)
+    decision_size_usd = Column(Float, nullable=True)
+    decision_leverage = Column(Integer, nullable=True)
+    decision_reason = Column(Text, nullable=True)
+    decision_json = Column(Text, nullable=True)  # Full decision as JSON
+    error_message = Column(Text, nullable=True)
+    execution_time_ms = Column(Float, nullable=True)
+
+    # Context snapshots for analysis/backtest
+    market_context = Column(Text, nullable=True)  # JSON: market data at execution time
+    params_snapshot = Column(Text, nullable=True)  # JSON: params used for this execution
+
+    # Order tracking for Completed Trades integration
+    hyperliquid_order_id = Column(String(100), nullable=True, index=True)  # Main order ID
+    tp_order_id = Column(String(100), nullable=True)  # Take profit order ID
+    sl_order_id = Column(String(100), nullable=True)  # Stop loss order ID
+
+    # Environment and PnL tracking (for attribution analysis)
+    environment = Column(String(20), nullable=True, index=True)  # "testnet" | "mainnet"
+    realized_pnl = Column(DECIMAL(18, 6), nullable=True)  # Realized PnL (filled on user refresh)
+    pnl_updated_at = Column(TIMESTAMP, nullable=True)  # When PnL was last updated
+
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp(), index=True)
+
+    # Relationships
+    binding = relationship("AccountProgramBinding", back_populates="execution_logs")
+    account = relationship("Account")
+    program = relationship("TradingProgram")
 
 
 # ============================================================================

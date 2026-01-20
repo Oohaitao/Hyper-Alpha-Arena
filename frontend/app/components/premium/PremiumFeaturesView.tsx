@@ -229,7 +229,7 @@ export default function PremiumFeaturesView({ onAccountUpdated, onPageChange }: 
                       <Percent className="w-5 h-5 text-blue-500" />
                       {t('premium.serviceFee', 'Service Fee')}
                       {isPremium && (
-                        <Badge className="bg-green-500 text-white text-xs">50% Off</Badge>
+                        <Badge className="bg-green-500 text-white text-xs">FREE</Badge>
                       )}
                     </CardTitle>
                     <CardDescription className="text-xs">
@@ -248,7 +248,7 @@ export default function PremiumFeaturesView({ onAccountUpdated, onPageChange }: 
                         {isPremium ? (
                           <>
                             <span className="line-through text-muted-foreground text-xl mr-2">0.03%</span>
-                            0.015%
+                            0%
                           </>
                         ) : (
                           '0.03%'

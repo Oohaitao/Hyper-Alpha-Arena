@@ -73,6 +73,20 @@ def initialize_services():
         subscribe_price_updates(strategy_price_wrapper)
         logger.info("Strategy manager subscribed to price updates")
 
+        # Subscribe Program Trader to price updates (for scheduled triggers)
+        from services.program_execution_service import program_execution_service
+
+        def program_price_wrapper(event):
+            """Wrapper to convert event format for program execution service"""
+            symbol = event.get("symbol")
+            price = event.get("price")
+            event_time = event.get("event_time")
+            if symbol and price:
+                program_execution_service.on_price_update(symbol, float(price), event_time)
+
+        subscribe_price_updates(program_price_wrapper)
+        logger.info("Program execution service subscribed to price updates")
+
         # Start AI trading strategy manager
         print("Starting strategy manager...")
         start_strategy_manager()

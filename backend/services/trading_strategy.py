@@ -348,6 +348,13 @@ class HyperliquidStrategyManager(StrategyManager):
         print(f"[HyperliquidStrategy] Signal pool triggered: {pool_name} (pool_id={pool_id}) on {symbol}")
         print(f"[HyperliquidStrategy] Checking {len(self.strategies)} strategies for pool_id={pool_id}")
 
+        # Also trigger Program Trader execution
+        try:
+            from services.program_execution_service import program_execution_service
+            program_execution_service.on_signal_triggered(symbol, pool, market_data, triggered_signals)
+        except Exception as e:
+            logger.error(f"[HyperliquidStrategy] Failed to trigger program execution: {e}")
+
         # Find all strategies bound to this signal pool (check if pool_id in signal_pool_ids)
         found_match = False
         for account_id, state in self.strategies.items():

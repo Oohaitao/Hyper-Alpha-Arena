@@ -43,6 +43,13 @@ MIGRATIONS = [
     "add_show_on_dashboard.py",
     "add_signal_pool_ids_field.py",
     "add_prompt_backtest_tables.py",
+    "create_program_trader_tables.py",
+    "add_decision_source_type.py",
+    "fix_binding_id_nullable.py",
+    "add_program_name_to_execution_logs.py",
+    "add_order_ids_to_program_execution_logs.py",
+    "add_pnl_fields_to_program_execution_logs.py",
+    "add_is_complete_to_ai_program_messages.py",
 ]
 
 

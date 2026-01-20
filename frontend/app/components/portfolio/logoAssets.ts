@@ -115,3 +115,33 @@ export function getSymbolLogo(symbol?: string | null) {
   if (!symbol) return undefined
   return symbolLogoMap[symbol.toUpperCase()]
 }
+
+// Program icon colors - cycle through these for different programs
+const PROGRAM_COLORS = [
+  { primary: '#3773A5', secondary: '#FFD731' }, // Python original
+  { primary: '#E74C3C', secondary: '#F39C12' }, // Red/Orange
+  { primary: '#9B59B6', secondary: '#3498DB' }, // Purple/Blue
+  { primary: '#1ABC9C', secondary: '#2ECC71' }, // Teal/Green
+  { primary: '#E91E63', secondary: '#00BCD4' }, // Pink/Cyan
+  { primary: '#FF5722', secondary: '#795548' }, // Deep Orange/Brown
+  { primary: '#607D8B', secondary: '#9E9E9E' }, // Blue Grey/Grey
+  { primary: '#673AB7', secondary: '#FFEB3B' }, // Deep Purple/Yellow
+]
+
+export function getProgramColor(index: number) {
+  return PROGRAM_COLORS[index % PROGRAM_COLORS.length]
+}
+
+export function getProgramIconSvg(index: number = 0) {
+  const colors = getProgramColor(index)
+  return `<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+    <path d="M508.416 3.584c-260.096 0-243.712 112.64-243.712 112.64l0.512 116.736h248.32v34.816H166.4S0 248.832 0 510.976s145.408 252.928 145.408 252.928h86.528v-121.856S227.328 496.64 374.784 496.64h246.272s138.24 2.048 138.24-133.632V139.776c-0.512 0 20.48-136.192-250.88-136.192zM371.712 82.432c24.576 0 44.544 19.968 44.544 44.544 0 24.576-19.968 44.544-44.544 44.544-24.576 0-44.544-19.968-44.544-44.544-0.512-24.576 19.456-44.544 44.544-44.544z" fill="${colors.primary}"/>
+    <path d="M515.584 1022.464c260.096 0 243.712-112.64 243.712-112.64l-0.512-116.736H510.976V757.76h346.624s166.4 18.944 166.4-243.2-145.408-252.928-145.408-252.928h-86.528v121.856s4.608 145.408-142.848 145.408h-245.76s-138.24-2.048-138.24 133.632v224.768c0-0.512-20.992 135.168 250.368 135.168z m136.704-78.336c-24.576 0-44.544-19.968-44.544-44.544 0-24.576 19.968-44.544 44.544-44.544 24.576 0 44.544 19.968 44.544 44.544 0.512 24.576-19.456 44.544-44.544 44.544z" fill="${colors.secondary}"/>
+  </svg>`
+}
+
+// For React components - returns color info for inline SVG rendering
+export function getProgramIconColors(programId?: number) {
+  const index = programId ? (programId - 1) : 0
+  return getProgramColor(index)
+}

@@ -111,6 +111,12 @@ async function fetchByDimension(dimension: string, params: URLSearchParams): Pro
   return res.json()
 }
 
+async function fetchProgramByDimension(dimension: string, params: URLSearchParams): Promise<DimensionResponse> {
+  const res = await fetch(`${API_BASE}/program-by-${dimension}?${params}`)
+  if (!res.ok) throw new Error(`Failed to fetch program-by-${dimension}`)
+  return res.json()
+}
+
 async function fetchAccounts(): Promise<Account[]> {
   const res = await fetch('/api/account/list')
   if (!res.ok) throw new Error('Failed to fetch accounts')
@@ -144,6 +150,11 @@ export default function AttributionAnalysis() {
   const [byStrategy, setByStrategy] = useState<DimensionResponse | null>(null)
   const [byTrigger, setByTrigger] = useState<DimensionResponse | null>(null)
   const [byOperation, setByOperation] = useState<DimensionResponse | null>(null)
+  // Program analytics states
+  const [progBySymbol, setProgBySymbol] = useState<DimensionResponse | null>(null)
+  const [progByProgram, setProgByProgram] = useState<DimensionResponse | null>(null)
+  const [progByTrigger, setProgByTrigger] = useState<DimensionResponse | null>(null)
+  const [progByOperation, setProgByOperation] = useState<DimensionResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [showNotice, setShowNotice] = useState(true)
   const [aiChatOpen, setAiChatOpen] = useState(false)
@@ -228,18 +239,29 @@ export default function AttributionAnalysis() {
     setLoading(true)
     try {
       const params = buildParams()
-      const [summaryData, symbolData, strategyData, triggerData, operationData] = await Promise.all([
+      const [
+        summaryData, symbolData, strategyData, triggerData, operationData,
+        progSymbolData, progProgramData, progTriggerData, progOperationData
+      ] = await Promise.all([
         fetchSummary(params),
         fetchByDimension('symbol', params),
         fetchByDimension('strategy', params),
         fetchByDimension('trigger-type', params),
         fetchByDimension('operation', params),
+        fetchProgramByDimension('symbol', params),
+        fetchProgramByDimension('program', params),
+        fetchProgramByDimension('trigger-type', params),
+        fetchProgramByDimension('operation', params),
       ])
       setSummary(summaryData)
       setBySymbol(symbolData)
       setByStrategy(strategyData)
       setByTrigger(triggerData)
       setByOperation(operationData)
+      setProgBySymbol(progSymbolData)
+      setProgByProgram(progProgramData)
+      setProgByTrigger(progTriggerData)
+      setProgByOperation(progOperationData)
     } catch (error) {
       console.error('Failed to load analytics data:', error)
     } finally {
@@ -386,8 +408,11 @@ export default function AttributionAnalysis() {
               )}
             </div>
 
-            <TabsContent value="dimensions" className="mt-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <TabsContent value="dimensions" className="mt-4 space-y-6">
+              {/* AI Decision Section */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold border-b pb-2">{t('attribution.aiDecision', 'AI Decision')}</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* By Symbol */}
             <Card>
               <CardHeader><CardTitle>{t('attribution.bySymbol', 'By Symbol')}</CardTitle></CardHeader>
@@ -526,6 +551,150 @@ export default function AttributionAnalysis() {
                 </table>
               </CardContent>
             </Card>
+                </div>
+              </div>
+
+              {/* Program Decision Section */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold border-b pb-2">{t('attribution.programDecision', 'Program Decision')}</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Program By Symbol */}
+                  <Card>
+                    <CardHeader><CardTitle>{t('attribution.bySymbol', 'By Symbol')}</CardTitle></CardHeader>
+                    <CardContent className="p-0">
+                      {progBySymbol?.items.length === 0 ? (
+                        <div className="text-muted-foreground text-sm p-4">{t('attribution.noProgramData', 'No program execution data')}</div>
+                      ) : (
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b text-muted-foreground">
+                              <th className="text-left p-2 font-medium">Symbol</th>
+                              <th className="text-right p-2 font-medium">Gross PnL</th>
+                              <th className="text-right p-2 font-medium">Fees</th>
+                              <th className="text-right p-2 font-medium">Net PnL</th>
+                              <th className="text-right p-2 font-medium">Trades</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {progBySymbol?.items.map((item: DimensionItem & { symbol?: string }) => (
+                              <tr key={item.symbol} className="border-b last:border-0">
+                                <td className="p-2 font-medium">{item.symbol}</td>
+                                <td className={`p-2 text-right ${item.metrics.total_pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>${item.metrics.total_pnl.toFixed(2)}</td>
+                                <td className="p-2 text-right text-orange-500">${item.metrics.total_fee.toFixed(2)}</td>
+                                <td className={`p-2 text-right ${item.metrics.net_pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>${item.metrics.net_pnl.toFixed(2)}</td>
+                                <td className="p-2 text-right">{item.metrics.trade_count}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Program By Program */}
+                  <Card>
+                    <CardHeader><CardTitle>{t('attribution.byProgram', 'By Program')}</CardTitle></CardHeader>
+                    <CardContent className="p-0">
+                      {progByProgram?.items.length === 0 ? (
+                        <div className="text-muted-foreground text-sm p-4">{t('attribution.noProgramData', 'No program execution data')}</div>
+                      ) : (
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b text-muted-foreground">
+                              <th className="text-left p-2 font-medium">Program</th>
+                              <th className="text-right p-2 font-medium">Gross PnL</th>
+                              <th className="text-right p-2 font-medium">Fees</th>
+                              <th className="text-right p-2 font-medium">Net PnL</th>
+                              <th className="text-right p-2 font-medium">Trades</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {progByProgram?.items.map((item: DimensionItem & { program_id?: number; program_name?: string }) => (
+                              <tr key={item.program_id} className="border-b last:border-0">
+                                <td className="p-2 font-medium">{item.program_name}</td>
+                                <td className={`p-2 text-right ${item.metrics.total_pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>${item.metrics.total_pnl.toFixed(2)}</td>
+                                <td className="p-2 text-right text-orange-500">${item.metrics.total_fee.toFixed(2)}</td>
+                                <td className={`p-2 text-right ${item.metrics.net_pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>${item.metrics.net_pnl.toFixed(2)}</td>
+                                <td className="p-2 text-right">{item.metrics.trade_count}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                      {progByProgram?.unattributed && progByProgram.unattributed.count > 0 && (
+                        <div className="p-2 border-t text-sm text-muted-foreground">
+                          {t('attribution.unattributed', 'Unattributed')}: {progByProgram.unattributed.count} trades
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Program By Trigger Type */}
+                  <Card>
+                    <CardHeader><CardTitle>{t('attribution.byTriggerType', 'By Trigger Type')}</CardTitle></CardHeader>
+                    <CardContent className="p-0">
+                      {progByTrigger?.items.length === 0 ? (
+                        <div className="text-muted-foreground text-sm p-4">{t('attribution.noProgramData', 'No program execution data')}</div>
+                      ) : (
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b text-muted-foreground">
+                              <th className="text-left p-2 font-medium">Trigger</th>
+                              <th className="text-right p-2 font-medium">Gross PnL</th>
+                              <th className="text-right p-2 font-medium">Fees</th>
+                              <th className="text-right p-2 font-medium">Net PnL</th>
+                              <th className="text-right p-2 font-medium">Trades</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {progByTrigger?.items.map((item: DimensionItem & { trigger_type?: string }) => (
+                              <tr key={item.trigger_type} className="border-b last:border-0">
+                                <td className="p-2 font-medium capitalize">{item.trigger_type}</td>
+                                <td className={`p-2 text-right ${item.metrics.total_pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>${item.metrics.total_pnl.toFixed(2)}</td>
+                                <td className="p-2 text-right text-orange-500">${item.metrics.total_fee.toFixed(2)}</td>
+                                <td className={`p-2 text-right ${item.metrics.net_pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>${item.metrics.net_pnl.toFixed(2)}</td>
+                                <td className="p-2 text-right">{item.metrics.trade_count}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Program By Operation */}
+                  <Card>
+                    <CardHeader><CardTitle>{t('attribution.byOperation', 'By Operation')}</CardTitle></CardHeader>
+                    <CardContent className="p-0">
+                      {progByOperation?.items.length === 0 ? (
+                        <div className="text-muted-foreground text-sm p-4">{t('attribution.noProgramData', 'No program execution data')}</div>
+                      ) : (
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b text-muted-foreground">
+                              <th className="text-left p-2 font-medium">Operation</th>
+                              <th className="text-right p-2 font-medium">Gross PnL</th>
+                              <th className="text-right p-2 font-medium">Fees</th>
+                              <th className="text-right p-2 font-medium">Net PnL</th>
+                              <th className="text-right p-2 font-medium">Trades</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {progByOperation?.items.map((item: DimensionItem & { operation?: string }) => (
+                              <tr key={item.operation} className="border-b last:border-0">
+                                <td className="p-2 font-medium uppercase">{item.operation}</td>
+                                <td className={`p-2 text-right ${item.metrics.total_pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>${item.metrics.total_pnl.toFixed(2)}</td>
+                                <td className="p-2 text-right text-orange-500">${item.metrics.total_fee.toFixed(2)}</td>
+                                <td className={`p-2 text-right ${item.metrics.net_pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>${item.metrics.net_pnl.toFixed(2)}</td>
+                                <td className="p-2 text-right">{item.metrics.trade_count}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             </TabsContent>
 

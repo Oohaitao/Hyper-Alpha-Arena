@@ -250,12 +250,12 @@ class HyperliquidTradingClient:
         unnecessary fees on testnet trading.
 
         Fee rates:
-        - Premium users: 15 (0.015%)
+        - Premium users: 0 (0% - FREE)
         - Non-premium users: 30 (0.03%)
 
         Returns:
             Dict with builder address and fee rate for mainnet, None for testnet
-            Format: {"b": "0x...", "f": 15 or 30} or None
+            Format: {"b": "0x...", "f": 0 or 30} or None
         """
         # Only apply builder fee on mainnet, not on testnet
         if self.environment != "mainnet":
@@ -275,9 +275,9 @@ class HyperliquidTradingClient:
                 UserSubscription.subscription_type == 'premium'
             ).first()
             if subscription:
-                builder_fee = 15  # Premium rate: 0.015%
+                builder_fee = 0  # Premium rate: 0% (FREE)
                 user = db.query(User).filter(User.id == subscription.user_id).first()
-                logger.info(f"[BUILDER FEE] Premium user '{user.username if user else 'unknown'}' detected, using reduced fee: 0.015%")
+                logger.info(f"[BUILDER FEE] Premium user '{user.username if user else 'unknown'}' detected, using FREE fee: 0%")
             else:
                 logger.info(f"[BUILDER FEE] No premium user logged in, using default fee: 0.03%")
             db.close()
@@ -409,18 +409,18 @@ class HyperliquidTradingClient:
             used_margin = float(balance.get('used', {}).get('USDC', 0) or 0)
             available_balance = float(balance.get('free', {}).get('USDC', 0) or 0)
 
-            # Calculate margin usage percentage
-            margin_usage_percent = (used_margin / total_equity * 100) if total_equity > 0 else 0
+            # Calculate margin usage percentage (round to 2 decimal places)
+            margin_usage_percent = round((used_margin / total_equity * 100), 2) if total_equity > 0 else 0
 
             result = {
                 'environment': self.environment,
                 'account_id': self.account_id,
-                'total_equity': total_equity,
-                'available_balance': available_balance,
-                'used_margin': used_margin,
-                'maintenance_margin': used_margin * 0.5,  # Estimate: maintenance = 50% of initial
+                'total_equity': round(total_equity, 2),
+                'available_balance': round(available_balance, 2),
+                'used_margin': round(used_margin, 2),
+                'maintenance_margin': round(used_margin * 0.5, 2),  # Estimate: maintenance = 50% of initial
                 'margin_usage_percent': margin_usage_percent,
-                'withdrawal_available': available_balance,
+                'withdrawal_available': round(available_balance, 2),
                 'wallet_address': self.wallet_address,
                 'timestamp': int(time.time() * 1000)
             }

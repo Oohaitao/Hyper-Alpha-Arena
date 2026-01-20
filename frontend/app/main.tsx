@@ -37,6 +37,8 @@ import PremiumFeaturesView from '@/components/premium/PremiumFeaturesView'
 import KlinesView from '@/components/klines/KlinesView'
 import MobileModelChat from '@/components/mobile/MobileModelChat'
 import MobileDashboard from '@/components/mobile/MobileDashboard'
+import MobilePrograms from '@/components/mobile/MobilePrograms'
+import ProgramTrader from '@/components/program/ProgramTrader'
 // Remove CallbackPage import - handle inline
 import { AIDecision, getAccounts, checkMainnetAccounts, approveBuilder, type UnauthorizedAccount } from '@/lib/api'
 import { AuthorizationModal } from '@/components/hyperliquid'
@@ -77,6 +79,7 @@ const PAGE_TITLES: Record<string, string> = {
   comprehensive: 'Hyper Alpha Arena',
   'system-logs': 'System Logs',
   'prompt-management': 'Prompt Templates',
+  'program-trader': 'Programs',
   'signal-management': 'Signal System',
   'attribution': 'Attribution Analysis',
   'trader-management': 'AI Trader Management',
@@ -680,6 +683,18 @@ function App() {
 
         {currentPage === 'prompt-management' && (
           <PromptManager />
+        )}
+
+        {currentPage === 'program-trader' && (
+          <>
+            {/* Mobile: MobilePrograms, Desktop: ProgramTrader */}
+            <div className="md:hidden flex flex-col flex-1 min-h-0">
+              <MobilePrograms />
+            </div>
+            <div className="hidden md:flex flex-col flex-1 min-h-0">
+              <ProgramTrader />
+            </div>
+          </>
         )}
 
         {currentPage === 'signal-management' && (

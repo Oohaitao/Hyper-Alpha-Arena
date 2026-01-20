@@ -23,6 +23,7 @@ from database.models import (
     Order,
     AccountStrategyConfig,
     PromptTemplate,
+    TradingProgram,
 )
 from database.snapshot_models import HyperliquidTrade
 from services.asset_calculator import calc_positions_value
@@ -459,12 +460,18 @@ def get_completed_trades(
         sl_to_main = {}  # sl_order_id -> hyperliquid_order_id
         tp_to_main = {}  # tp_order_id -> hyperliquid_order_id
         prompt_template_ids = set()
+        program_ids = set()
 
         for d in decisions:
             if d.hyperliquid_order_id:
                 decision_by_main_order[str(d.hyperliquid_order_id)] = d
                 if d.prompt_template_id:
-                    prompt_template_ids.add(d.prompt_template_id)
+                    # Separate by decision_source_type
+                    source_type = d.decision_source_type or "prompt_template"
+                    if source_type == "program":
+                        program_ids.add(d.prompt_template_id)
+                    else:
+                        prompt_template_ids.add(d.prompt_template_id)
             if d.sl_order_id and d.hyperliquid_order_id:
                 sl_to_main[str(d.sl_order_id)] = str(d.hyperliquid_order_id)
             if d.tp_order_id and d.hyperliquid_order_id:
@@ -475,6 +482,56 @@ def get_completed_trades(
         if prompt_template_ids:
             templates = db.query(PromptTemplate).filter(PromptTemplate.id.in_(prompt_template_ids)).all()
             prompt_template_map = {t.id: t.name for t in templates}
+
+        # Batch fetch program names
+        program_map = {}
+        if program_ids:
+            programs = db.query(TradingProgram).filter(TradingProgram.id.in_(program_ids)).all()
+            program_map = {p.id: p.name for p in programs}
+
+        # Also query ProgramExecutionLog for orders not in AIDecisionLog
+        # This handles Program Trader orders that don't go through save_ai_decision
+        from database.models import ProgramExecutionLog, SignalPool
+        program_logs = []
+        if order_ids:
+            program_logs = db.query(ProgramExecutionLog).filter(
+                or_(
+                    ProgramExecutionLog.hyperliquid_order_id.in_(order_ids),
+                    ProgramExecutionLog.sl_order_id.in_(order_ids),
+                    ProgramExecutionLog.tp_order_id.in_(order_ids),
+                )
+            ).all()
+
+        # Build mappings for ProgramExecutionLog
+        program_log_by_main_order = {}
+        program_sl_to_main = {}
+        program_tp_to_main = {}
+        program_log_program_ids = set()
+        program_log_signal_pool_ids = set()
+
+        for pl in program_logs:
+            if pl.hyperliquid_order_id:
+                program_log_by_main_order[str(pl.hyperliquid_order_id)] = pl
+                if pl.program_id:
+                    program_log_program_ids.add(pl.program_id)
+                if pl.signal_pool_id:
+                    program_log_signal_pool_ids.add(pl.signal_pool_id)
+            if pl.sl_order_id and pl.hyperliquid_order_id:
+                program_sl_to_main[str(pl.sl_order_id)] = str(pl.hyperliquid_order_id)
+            if pl.tp_order_id and pl.hyperliquid_order_id:
+                program_tp_to_main[str(pl.tp_order_id)] = str(pl.hyperliquid_order_id)
+
+        # Batch fetch program names for ProgramExecutionLog
+        if program_log_program_ids:
+            extra_programs = db.query(TradingProgram).filter(TradingProgram.id.in_(program_log_program_ids)).all()
+            for p in extra_programs:
+                program_map[p.id] = p.name
+
+        # Batch fetch signal pool names
+        signal_pool_map = {}
+        if program_log_signal_pool_ids:
+            pools = db.query(SignalPool).filter(SignalPool.id.in_(program_log_signal_pool_ids)).all()
+            signal_pool_map = {p.id: p.pool_name for p in pools}
 
         # First pass: build trade objects and separate main orders from sl/tp orders
         main_trades: Dict[str, dict] = {}  # order_id -> trade dict
@@ -522,33 +579,61 @@ def get_completed_trades(
             }
 
             # Classify this trade: main order, SL, TP, or other
+            # First check AIDecisionLog (AI Trader)
             if order_id_str and order_id_str in decision_by_main_order:
-                # This is a main order
+                # This is a main order from AI Trader
                 decision = decision_by_main_order[order_id_str]
+                source_type = decision.decision_source_type or "prompt_template"
                 trade_dict["signal_trigger_id"] = decision.signal_trigger_id
                 trade_dict["prompt_template_id"] = decision.prompt_template_id
-                trade_dict["prompt_template_name"] = prompt_template_map.get(decision.prompt_template_id)
+                trade_dict["decision_source_type"] = source_type
+                # Get name from correct table based on source type
+                if source_type == "program":
+                    trade_dict["prompt_template_name"] = program_map.get(decision.prompt_template_id)
+                else:
+                    trade_dict["prompt_template_name"] = prompt_template_map.get(decision.prompt_template_id)
                 trade_dict["related_orders"] = []  # Will be populated later
                 main_trades[order_id_str] = trade_dict
             elif order_id_str and order_id_str in sl_to_main:
-                # This is a stop-loss order
+                # This is a stop-loss order from AI Trader
                 trade_dict["order_type"] = "sl"
                 sl_trades[order_id_str] = trade_dict
             elif order_id_str and order_id_str in tp_to_main:
-                # This is a take-profit order
+                # This is a take-profit order from AI Trader
+                trade_dict["order_type"] = "tp"
+                tp_trades[order_id_str] = trade_dict
+            # Then check ProgramExecutionLog (Program Trader)
+            elif order_id_str and order_id_str in program_log_by_main_order:
+                # This is a main order from Program Trader
+                pl = program_log_by_main_order[order_id_str]
+                trade_dict["signal_trigger_id"] = pl.signal_pool_id  # Use signal_pool_id
+                trade_dict["prompt_template_id"] = pl.program_id
+                trade_dict["decision_source_type"] = "program"
+                trade_dict["prompt_template_name"] = program_map.get(pl.program_id) or pl.program_name
+                trade_dict["signal_pool_name"] = signal_pool_map.get(pl.signal_pool_id)
+                trade_dict["related_orders"] = []
+                main_trades[order_id_str] = trade_dict
+            elif order_id_str and order_id_str in program_sl_to_main:
+                # This is a stop-loss order from Program Trader
+                trade_dict["order_type"] = "sl"
+                sl_trades[order_id_str] = trade_dict
+            elif order_id_str and order_id_str in program_tp_to_main:
+                # This is a take-profit order from Program Trader
                 trade_dict["order_type"] = "tp"
                 tp_trades[order_id_str] = trade_dict
             else:
-                # Not linked to any AI decision (manual trade or unknown)
+                # Not linked to any decision (manual trade or unknown)
                 trade_dict["signal_trigger_id"] = None
                 trade_dict["prompt_template_id"] = None
                 trade_dict["prompt_template_name"] = None
+                trade_dict["decision_source_type"] = None
                 trade_dict["related_orders"] = []
                 other_trades.append(trade_dict)
 
         # Second pass: nest SL/TP trades under their main orders
+        # Check both AIDecisionLog and ProgramExecutionLog mappings
         for sl_order_id, sl_trade in sl_trades.items():
-            main_order_id = sl_to_main.get(sl_order_id)
+            main_order_id = sl_to_main.get(sl_order_id) or program_sl_to_main.get(sl_order_id)
             if main_order_id and main_order_id in main_trades:
                 main_trades[main_order_id]["related_orders"].append({
                     "type": "sl",
@@ -560,7 +645,7 @@ def get_completed_trades(
                 })
 
         for tp_order_id, tp_trade in tp_trades.items():
-            main_order_id = tp_to_main.get(tp_order_id)
+            main_order_id = tp_to_main.get(tp_order_id) or program_tp_to_main.get(tp_order_id)
             if main_order_id and main_order_id in main_trades:
                 main_trades[main_order_id]["related_orders"].append({
                     "type": "tp",
@@ -1004,16 +1089,17 @@ def check_pnl_sync_status(
 ):
     """
     Check if there are trades that need PnL synchronization.
-    Returns the count of unsynchronized trades.
+    Returns the count of unsynchronized trades for both AI Decision and Program.
     Only counts trades that have order IDs (can be synced).
     """
     from sqlalchemy import or_
+    from database.models import ProgramExecutionLog
 
-    query = db.query(AIDecisionLog).filter(
+    # Check AI Decision logs
+    ai_query = db.query(AIDecisionLog).filter(
         AIDecisionLog.operation.in_(["buy", "sell", "close"]),
         AIDecisionLog.executed == "true",
         AIDecisionLog.pnl_updated_at == None,
-        # Only count trades that have at least one order ID (can be synced)
         or_(
             AIDecisionLog.hyperliquid_order_id != None,
             AIDecisionLog.tp_order_id != None,
@@ -1023,18 +1109,43 @@ def check_pnl_sync_status(
 
     if trading_mode:
         if trading_mode == "paper":
-            query = query.filter(AIDecisionLog.hyperliquid_environment == None)
+            ai_query = ai_query.filter(AIDecisionLog.hyperliquid_environment == None)
         else:
-            query = query.filter(AIDecisionLog.hyperliquid_environment == trading_mode)
+            ai_query = ai_query.filter(AIDecisionLog.hyperliquid_environment == trading_mode)
     else:
-        # Only check Hyperliquid trades (testnet/mainnet)
-        query = query.filter(AIDecisionLog.hyperliquid_environment.isnot(None))
+        ai_query = ai_query.filter(AIDecisionLog.hyperliquid_environment.isnot(None))
 
-    unsync_count = query.count()
+    ai_unsync_count = ai_query.count()
+
+    # Check Program execution logs
+    prog_query = db.query(ProgramExecutionLog).filter(
+        ProgramExecutionLog.success == True,
+        ProgramExecutionLog.decision_action.in_(["buy", "sell", "close"]),
+        ProgramExecutionLog.pnl_updated_at == None,
+        or_(
+            ProgramExecutionLog.hyperliquid_order_id != None,
+            ProgramExecutionLog.tp_order_id != None,
+            ProgramExecutionLog.sl_order_id != None,
+        ),
+    )
+
+    if trading_mode:
+        if trading_mode == "paper":
+            prog_query = prog_query.filter(ProgramExecutionLog.environment == None)
+        else:
+            prog_query = prog_query.filter(ProgramExecutionLog.environment == trading_mode)
+    else:
+        prog_query = prog_query.filter(ProgramExecutionLog.environment.isnot(None))
+
+    prog_unsync_count = prog_query.count()
+
+    total_unsync = ai_unsync_count + prog_unsync_count
 
     return {
-        "needs_sync": unsync_count > 0,
-        "unsync_count": unsync_count,
+        "needs_sync": total_unsync > 0,
+        "unsync_count": total_unsync,
+        "ai_unsync_count": ai_unsync_count,
+        "program_unsync_count": prog_unsync_count,
     }
 
 
@@ -1144,6 +1255,7 @@ def _process_fills_for_environment(
         "trades_updated": 0,
         "trades_created": 0,
         "decisions_updated": 0,
+        "program_logs_updated": 0,
         "skipped": 0,
     }
 
@@ -1219,14 +1331,31 @@ def _process_fills_for_environment(
             if oid:
                 order_to_decision[str(oid)] = decision
 
+    # Also build order_id -> program_log mapping for Program Trader orders
+    from database.models import ProgramExecutionLog
+    program_logs = db.query(ProgramExecutionLog).filter(
+        ProgramExecutionLog.success == True,
+        ProgramExecutionLog.decision_action.in_(["buy", "sell", "close"]),
+    ).all()
+
+    order_to_program_log = {}
+    for pl in program_logs:
+        for oid in [pl.hyperliquid_order_id, pl.tp_order_id, pl.sl_order_id]:
+            if oid:
+                order_to_program_log[str(oid)] = pl
+
     # Create missing HyperliquidTrade records for resting orders that later filled
+    # Check both AIDecisionLog and ProgramExecutionLog
     for oid, agg in order_aggregates.items():
         if oid in existing_trade_order_ids:
             continue  # Already exists
-        if oid not in order_to_decision:
-            continue  # Not from AI decision
 
-        decision = order_to_decision[oid]
+        # Try to find source: AIDecisionLog or ProgramExecutionLog
+        decision = order_to_decision.get(oid)
+        program_log = order_to_program_log.get(oid)
+
+        if not decision and not program_log:
+            continue  # Not from any known source
         fills_list = agg["fills"]
         if not fills_list:
             continue
@@ -1263,12 +1392,24 @@ def _process_fills_for_environment(
         else:
             trade_time = datetime.utcnow()
 
+        # Get account_id, wallet_address, symbol from either source
+        if decision:
+            account_id = decision.account_id
+            wallet_address = decision.wallet_address
+            symbol = decision.symbol or fills_list[0].get("coin", "")
+            source_info = f"decision {decision.id}"
+        else:
+            account_id = program_log.account_id
+            wallet_address = program_log.wallet_address
+            symbol = program_log.decision_symbol or fills_list[0].get("coin", "")
+            source_info = f"program_log {program_log.id}"
+
         # Create new HyperliquidTrade record
         new_trade = HyperliquidTrade(
-            account_id=decision.account_id,
+            account_id=account_id,
             environment=environment,
-            wallet_address=decision.wallet_address,
-            symbol=decision.symbol or fills_list[0].get("coin", ""),
+            wallet_address=wallet_address,
+            symbol=symbol,
             side=side,
             quantity=total_qty,
             price=avg_price,
@@ -1282,7 +1423,7 @@ def _process_fills_for_environment(
         snapshot_db.add(new_trade)
         existing_trade_order_ids.add(oid)  # Prevent duplicates in same run
         result["trades_created"] += 1
-        logger.info(f"Created missing HyperliquidTrade for order {oid}, decision {decision.id}")
+        logger.info(f"Created missing HyperliquidTrade for order {oid}, {source_info}")
 
     for decision in decisions:
         updated = False
@@ -1349,6 +1490,51 @@ def _process_fills_for_environment(
 
         if updated:
             result["decisions_updated"] += 1
+
+    # Update ProgramExecutionLog records
+    # Match by hyperliquid_order_id, tp_order_id, sl_order_id and accumulate PnL
+    for program_log in program_logs:
+        # Skip if environment doesn't match (for logs that have environment set)
+        if program_log.environment and program_log.environment != environment:
+            continue
+
+        updated = False
+        total_pnl = Decimal("0")
+        matched_order_ids = set()
+
+        order_ids_to_check = [
+            program_log.hyperliquid_order_id,
+            program_log.tp_order_id,
+            program_log.sl_order_id,
+        ]
+
+        for oid in order_ids_to_check:
+            if oid:
+                order_id_str = str(oid)
+                if order_id_str in order_aggregates and order_id_str not in matched_order_ids:
+                    agg = order_aggregates[order_id_str]
+                    total_pnl += agg["total_pnl"]
+                    matched_order_ids.add(order_id_str)
+
+        if matched_order_ids:
+            program_log.realized_pnl = total_pnl
+            # Also set environment if not already set (for historical records)
+            if not program_log.environment:
+                program_log.environment = environment
+
+            # Try to get actual trigger time for TP/SL orders
+            trigger_time = None
+            for oid in [program_log.tp_order_id, program_log.sl_order_id]:
+                if oid and str(oid) in matched_order_ids:
+                    trigger_time = get_order_trigger_time(program_log.account_id, str(oid))
+                    if trigger_time:
+                        break
+
+            program_log.pnl_updated_at = trigger_time if trigger_time else datetime.utcnow()
+            updated = True
+
+        if updated:
+            result["program_logs_updated"] += 1
 
     # Fix historical data: update pnl_updated_at for records with TP/SL orders
     # that may have been set to button click time instead of actual trigger time

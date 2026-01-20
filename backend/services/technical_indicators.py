@@ -232,3 +232,87 @@ def get_available_indicators() -> List[Dict[str, str]]:
         {'name': 'STOCH', 'description': '随机震荡指标'},
         {'name': 'OBV', 'description': '能量潮指标'},
     ]
+
+
+def calculate_indicator(
+    db,
+    symbol: str,
+    indicator: str,
+    period: str,
+    current_time_ms: int
+) -> Optional[Dict[str, Any]]:
+    """
+    Calculate a single technical indicator for Program Trader.
+
+    Args:
+        db: Database session
+        symbol: Trading symbol (e.g., 'BTC')
+        indicator: Indicator name (e.g., 'RSI14', 'EMA20', 'MACD')
+        period: K-line period (e.g., '1h', '4h', '1d')
+        current_time_ms: Current timestamp in milliseconds
+
+    Returns:
+        Dict with indicator values, or None if calculation fails
+    """
+    from database.models import CryptoKline
+    from sqlalchemy import desc
+
+    try:
+        # Determine how many candles we need based on indicator
+        count = 100  # Default
+        if 'EMA100' in indicator or 'MA100' in indicator:
+            count = 150
+        elif 'EMA50' in indicator or 'MA50' in indicator:
+            count = 100
+
+        # Fetch K-line data from database
+        rows = (
+            db.query(CryptoKline)
+            .filter(CryptoKline.symbol == symbol, CryptoKline.period == period)
+            .order_by(desc(CryptoKline.timestamp))
+            .limit(count)
+            .all()
+        )
+
+        if not rows:
+            logger.warning(f"No kline data for {symbol} {period}")
+            return None
+
+        # Convert to list of dicts for calculate_indicators
+        # Note: CryptoKline uses open_price/high_price/etc and timestamp is integer (ms)
+        kline_data = [
+            {
+                'timestamp': int(row.timestamp),
+                'open': float(row.open_price) if row.open_price else 0.0,
+                'high': float(row.high_price) if row.high_price else 0.0,
+                'low': float(row.low_price) if row.low_price else 0.0,
+                'close': float(row.close_price) if row.close_price else 0.0,
+                'volume': float(row.volume) if row.volume else 0.0,
+            }
+            for row in reversed(rows)
+        ]
+
+        # Calculate the indicator
+        results = calculate_indicators(kline_data, [indicator])
+
+        if indicator in results and results[indicator] is not None:
+            value = results[indicator]
+            # Return the latest value(s)
+            if isinstance(value, list):
+                return {'value': value[-1] if value else None, 'series': value}
+            elif isinstance(value, dict):
+                # For MACD, BOLL, STOCH etc. - return latest values
+                latest = {}
+                for k, v in value.items():
+                    if isinstance(v, list) and v:
+                        latest[k] = v[-1]
+                    else:
+                        latest[k] = v
+                return latest
+            return {'value': value}
+
+        return None
+
+    except Exception as e:
+        logger.error(f"Error in calculate_indicator({symbol}, {indicator}, {period}): {e}")
+        return None
