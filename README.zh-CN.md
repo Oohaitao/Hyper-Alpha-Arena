@@ -13,23 +13,6 @@
 [![English](https://img.shields.io/badge/Lang-English-blue)](https://www.akooi.com/docs/)
 [![中文](https://img.shields.io/badge/语言-中文-red)](https://www.akooi.com/docs/zh/)
 
-## 🔥 开始交易，最高省 30% 手续费
-
-### 🚀 **Hyperliquid** — 去中心化合约交易所
-- **无需 KYC** | **手续费低** | **性能强悍**
-- 与本项目深度集成，开箱即用
-- [**立即开户 →**](https://app.hyperliquid.xyz/join/HYPERSVIP)
-
-### 💰 **Binance** — 全球最大交易所
-- **手续费打 7 折** | **深度好** | **工具全**
-- [**注册领 30% 返佣 →**](https://accounts.maxweb.red/register?ref=HYPERVIP)
-
-### ⚡ **Aster DEX** — 兼容 Binance 的 DEX
-- **手续费更低** | **多链支持** | **API 钱包更安全**
-- [**立即注册 →**](https://www.asterdex.com/zh-CN/referral/2b5924)
-
----
-
 ## 这是什么
 
 Hyper Alpha Arena 是一个 AI 交易平台——让 GPT、Claude、Deepseek 这些大模型帮你盯盘、分析、下单，全自动。灵感来自 [nof1 Alpha Arena](https://nof1.ai)。
@@ -56,7 +39,7 @@ Hyper Alpha Arena 是一个 AI 交易平台——让 GPT、Claude、Deepseek 这
 | 模式 | 适用场景 | 工作方式 |
 |------|---------|----------|
 | **AI Trader** | 需要理解市场的策略（舆情、新闻、综合判断） | 自然语言描述策略，AI 实时分析并决策 |
-| **Program Trader** | 固定规则策略（技术指标、价格条件） | Python 代码定义规则，毫秒级执行，可回测 |
+| **Program Trader** | 固定规则策略（技术指标、价格条件） | Python 代码定义规则，历史数据回测验证，毫秒级执行 |
 
 **市场流动信号监控** - 不用 24/7 盯盘，大资金异动时自动触发。监控订单流失衡、持仓量激增、资金费率极端，只在市场结构性变化时触发交易。
 
@@ -70,7 +53,7 @@ Hyper Alpha Arena 是一个 AI 交易平台——让 GPT、Claude、Deepseek 这
 
 **多模型 LLM 支持** - 兼容 OpenAI API 格式模型（GPT-5、Claude、Deepseek 等）。多钱包架构，测试网/主网独立配置。
 
-**程序化交易 (Program Trader)** - 用 Python 代码定义交易规则。AI 助手通过对话帮你编写和调试代码。语法验证、执行预览、回测验证，上线前充分测试。
+**程序化交易 (Program Trader)** - 用 Python 代码定义交易规则。历史数据回测验证策略盈利能力，上线前充分测试。AI 助手通过对话帮你编写和优化代码。
 
 ## 界面预览
 

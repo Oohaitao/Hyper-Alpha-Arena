@@ -13,25 +13,6 @@
 [![English](https://img.shields.io/badge/Lang-English-blue)](https://www.akooi.com/docs/)
 [![中文](https://img.shields.io/badge/语言-中文-red)](https://www.akooi.com/docs/zh/)
 
-## 🔥 Start Trading Now - Up to 30% Fee Discount
-
-Ready to put your AI trading strategies to work? Get started with these top exchanges:
-
-### 🚀 **Hyperliquid** - Decentralized Perpetual Exchange
-- **No KYC Required** | **Low Fees** | **High Performance**
-- Direct integration with Hyper Alpha Arena
-- [**Open Futures Trading →**](https://app.hyperliquid.xyz/join/HYPERSVIP)
-
-### 💰 **Binance** - World's Largest Exchange
-- **30% Fee Discount** | **High Liquidity** | **Advanced Tools**
-- [**Register with 30% Discount →**](https://accounts.maxweb.red/register?ref=HYPERVIP)
-
-### ⚡ **Aster DEX** - Binance-Compatible DEX
-- **Lower Fees** | **Multi-chain Support** | **API Wallet Security**
-- [**Register Now →**](https://www.asterdex.com/zh-CN/referral/2b5924)
-
----
-
 ## Overview
 
 Hyper Alpha Arena is a production-ready AI trading platform where Large Language Models (LLMs) autonomously execute cryptocurrency trading strategies. Inspired by [nof1 Alpha Arena](https://nof1.ai), this platform enables AI models like GPT-5, Claude, and Deepseek to make intelligent trading decisions based on real-time market data and execute trades automatically.
@@ -58,7 +39,7 @@ Hyper Alpha Arena is a production-ready AI trading platform where Large Language
 | Mode | Best For | How It Works |
 |------|----------|--------------|
 | **AI Trader** | Strategies needing market understanding (news, sentiment, complex judgment) | Describe strategy in natural language, AI analyzes and decides in real-time |
-| **Program Trader** | Fixed-rule strategies (technical indicators, price levels) | Define rules in Python code, millisecond execution, backtestable |
+| **Program Trader** | Fixed-rule strategies (technical indicators, price levels) | Define rules in Python code, backtest on historical data, millisecond execution |
 
 **Market Flow Signal Monitoring** - No need to watch charts 24/7. Automatically triggers when big money moves. Monitors order flow imbalance, open interest surges, funding rate extremes—activates trading only when market structure changes.
 
@@ -72,7 +53,7 @@ Hyper Alpha Arena is a production-ready AI trading platform where Large Language
 
 **Multi-Model LLM Support** - Compatible with OpenAI API models (GPT-5, Claude, Deepseek, etc.). Multi-wallet architecture with independent testnet/mainnet configurations.
 
-**Program Trader** - Define trading rules with Python code. AI assistant helps write and debug code through conversation. Validate syntax, preview execution, and backtest before going live.
+**Program Trader** - Define trading rules with Python code. Backtest strategies on historical data to validate profitability before going live. AI assistant helps write and optimize code through conversation.
 
 ## Screenshots
 
