@@ -846,15 +846,13 @@ Get price change over period.
 
 **Example Return**:
 ```python
-change = data.get_price_change("BTC", "1h")
+change = data.get_price_change("BTC", "5m")
 # Returns:
 {
-  "change_percent": 0.0,
-  "change_usd": 0.0
+  "change_percent": 0.141,   # Price change percentage (0.141 = +0.141%)
+  "change_usd": 129.0        # Absolute USD change
 }
 ```
-
-**Note**: Currently may return 0 values - verify with `query_market_data` tool.
 
 ---
 

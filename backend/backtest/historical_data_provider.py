@@ -314,20 +314,31 @@ class HistoricalDataProvider:
         return RegimeInfo(regime="noise", conf=0.0)
 
     def get_price_change(self, symbol: str, period: str) -> Dict[str, float]:
-        """Get price change over period."""
-        from services.market_flow_indicators import get_indicator_value
+        """Get price change over period.
+
+        Returns:
+            Dict with change_percent (percentage) and change_usd (absolute USD change)
+        """
+        from services.market_flow_indicators import get_flow_indicators_for_prompt
 
         # Log the query
         self._log_query("get_price_change", symbol, f"period={period}")
 
         try:
-            raw = get_indicator_value(
-                self.db, symbol, "PRICE_CHANGE", period, self.current_time_ms
+            # Use get_flow_indicators_for_prompt to get full data structure
+            # _get_price_change_data returns: {current, start_price, end_price, last_5, period}
+            results = get_flow_indicators_for_prompt(
+                self.db, symbol, period, ["PRICE_CHANGE"], self.current_time_ms
             )
-            if raw:
+            data = results.get("PRICE_CHANGE")
+            if data:
+                change_pct = data.get("current", 0.0)
+                start_price = data.get("start_price", 0.0)
+                end_price = data.get("end_price", 0.0)
+                change_usd = (end_price - start_price) if start_price and end_price else 0.0
                 return {
-                    "change_percent": raw.get("change_percent", 0.0),
-                    "change_usd": raw.get("change_usd", 0.0),
+                    "change_percent": change_pct,
+                    "change_usd": change_usd,
                 }
         except Exception:
             pass

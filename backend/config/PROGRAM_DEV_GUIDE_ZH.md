@@ -688,15 +688,13 @@ if regime.indicators.get("rsi", 50) < 30:
 
 **实际返回示例**：
 ```python
-change = data.get_price_change("BTC", "1h")
+change = data.get_price_change("BTC", "5m")
 # 返回：
 {
-  "change_percent": 0.0,
-  "change_usd": 0.0
+  "change_percent": 0.141,   # 价格变化百分比（0.141 = +0.141%）
+  "change_usd": 129.0        # 绝对美元变化
 }
 ```
-
-**注意**：当前可能返回 0 值 - 请使用 `query_market_data` 工具验证。
 
 ---
 
