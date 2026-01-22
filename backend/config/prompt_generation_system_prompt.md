@@ -175,6 +175,24 @@ Signal Pool: "Flow Surge Monitor"
     └── Taker Imbalance: taker_ratio > 3.5
 ```
 
+**Multi-Timeframe Signal Pools (IMPORTANT):**
+A single Signal Pool can contain signals monitoring different time windows. This allows capturing market events across multiple timeframes simultaneously:
+
+```
+Signal Pool: "Multi-Timeframe Flow Monitor"
+├── Logic: OR
+├── Symbols: [BTC]
+└── Signals:
+    ├── Short-term CVD (1m): cvd > 5,000,000    # Quick momentum shifts
+    ├── Medium-term OI (5m): oi_delta > 1.0%    # Position building
+    └── Long-term Funding (1h): funding > 0.01% # Sentiment extremes
+```
+
+**Why use multi-timeframe signals:**
+- **Capture different market dynamics**: 1m signals catch rapid moves, 1h signals catch sustained trends
+- **Reduce false positives**: Combine fast signals with slower confirmation
+- **Flexible strategy design**: Entry on short timeframe, confirmation on longer timeframe
+
 **Available Signal Metrics:**
 
 | Metric | Description | Typical Thresholds |

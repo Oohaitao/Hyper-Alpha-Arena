@@ -9,6 +9,7 @@ import json
 import logging
 import random
 import re
+import requests
 import time
 import traceback
 from typing import Dict, List, Optional, Any, Generator
@@ -427,6 +428,26 @@ data.get_flow("BTC", "IMBALANCE", "1h")
 
 ### Periods: "1m", "5m", "15m", "1h", "4h"
 
+### Multi-Timeframe Signal Pools
+A single Signal Pool can contain signals with different time windows. When triggered, `data.triggered_signals` may include signals from various timeframes:
+
+```python
+# Example: Signal pool with mixed timeframes
+# - CVD signal on 1m (quick momentum)
+# - OI Delta signal on 5m (position building)
+# - Funding signal on 1h (sentiment extreme)
+
+for sig in data.triggered_signals:
+    timeframe = sig.get("time_window")  # "1m", "5m", "1h", etc.
+    metric = sig.get("metric")
+    if timeframe == "1m" and metric == "cvd":
+        # Fast signal - use for timing
+        pass
+    elif timeframe == "1h" and metric == "funding":
+        # Slow signal - use for direction bias
+        pass
+```
+
 ### Scheduled vs Signal Trigger (IMPORTANT)
 Your strategy may be triggered by signal pool or scheduled interval. Handle both cases:
 
@@ -715,6 +736,106 @@ def _convert_messages_to_anthropic(openai_messages: List[Dict]) -> tuple:
     flush_tool_results()
 
     return system_prompt, anthropic_messages
+
+
+def _call_anthropic_streaming(endpoint: str, payload: dict, headers: dict, timeout: int = 180) -> dict:
+    """
+    Call Anthropic API with streaming to avoid Cloudflare timeout.
+
+    Streaming keeps the connection alive by sending data chunks continuously,
+    preventing gateway timeouts (504) from Cloudflare or other proxies.
+
+    Returns: dict with same structure as non-streaming response
+        {"content": [...], "stop_reason": "..."}
+    """
+    # Enable streaming
+    payload = payload.copy()
+    payload["stream"] = True
+
+    content_blocks = []  # Accumulated content blocks
+    current_block = None  # Current block being built
+    current_block_index = -1
+    stop_reason = None
+
+    response = requests.post(endpoint, json=payload, headers=headers, timeout=timeout, stream=True)
+
+    if response.status_code != 200:
+        # Return error info for caller to handle
+        raise Exception(f"HTTP {response.status_code}: {response.text[:500]}")
+
+    # Parse SSE stream - use explicit UTF-8 decoding to avoid encoding issues
+    for line_bytes in response.iter_lines():
+        if not line_bytes:
+            continue
+        # Decode with UTF-8 explicitly
+        line = line_bytes.decode('utf-8')
+        if line.startswith("event:"):
+            continue  # Skip event type lines, we parse data directly
+        if not line.startswith("data:"):
+            continue
+
+        data_str = line[5:].strip()  # Remove "data:" prefix
+        if data_str == "[DONE]":
+            break
+
+        try:
+            data = json.loads(data_str)
+        except json.JSONDecodeError:
+            continue
+
+        event_type = data.get("type", "")
+
+        if event_type == "content_block_start":
+            # New content block starting
+            current_block_index = data.get("index", 0)
+            block_data = data.get("content_block", {})
+            block_type = block_data.get("type", "")
+
+            if block_type == "text":
+                current_block = {"type": "text", "text": ""}
+            elif block_type == "tool_use":
+                current_block = {
+                    "type": "tool_use",
+                    "id": block_data.get("id", ""),
+                    "name": block_data.get("name", ""),
+                    "input": ""  # Will accumulate JSON string, parse at end
+                }
+
+        elif event_type == "content_block_delta":
+            # Incremental content
+            delta = data.get("delta", {})
+            delta_type = delta.get("type", "")
+
+            if delta_type == "text_delta" and current_block:
+                current_block["text"] += delta.get("text", "")
+            elif delta_type == "input_json_delta" and current_block:
+                current_block["input"] += delta.get("partial_json", "")
+
+        elif event_type == "content_block_stop":
+            # Block complete, add to list
+            if current_block:
+                # Parse tool_use input from accumulated JSON string
+                if current_block.get("type") == "tool_use":
+                    input_str = current_block.get("input", "")
+                    if input_str:
+                        try:
+                            current_block["input"] = json.loads(input_str)
+                        except json.JSONDecodeError:
+                            current_block["input"] = {}
+                    else:
+                        current_block["input"] = {}
+                content_blocks.append(current_block)
+                current_block = None
+
+        elif event_type == "message_delta":
+            # Message-level delta (contains stop_reason)
+            delta = data.get("delta", {})
+            stop_reason = delta.get("stop_reason")
+
+    return {
+        "content": content_blocks,
+        "stop_reason": stop_reason
+    }
 
 
 # Anthropic format tools (pre-converted for efficiency)
@@ -1404,30 +1525,42 @@ You are creating a new program. Start fresh and design the strategy based on use
 
             # API call with retry logic
             response = None
+            resp_json = None  # For Anthropic streaming, we get parsed result directly
             last_error = None
             last_status_code = None
 
             for retry_attempt in range(API_MAX_RETRIES):
                 response = None
+                resp_json = None
                 last_error = None
 
                 for endpoint in endpoints:
                     try:
                         logger.info(f"[AI Program {request_id}] Trying endpoint: {endpoint}" +
                                    (f" (retry {retry_attempt + 1}/{API_MAX_RETRIES})" if retry_attempt > 0 else ""))
-                        response = requests.post(endpoint, json=payload, headers=headers, timeout=120)
-                        logger.info(f"[AI Program {request_id}] Response status: {response.status_code}")
-                        if response.status_code != 200:
-                            logger.warning(f"[AI Program {request_id}] Non-200 response from {endpoint}: {response.status_code} - {response.text[:500]}")
-                            last_status_code = response.status_code
-                        if response.status_code == 200:
-                            break
+
+                        if api_format == 'anthropic':
+                            # Use streaming for Anthropic to avoid Cloudflare timeout
+                            resp_json = _call_anthropic_streaming(endpoint, payload, headers, timeout=180)
+                            logger.info(f"[AI Program {request_id}] Anthropic streaming response received")
+                            break  # Success
+                        else:
+                            # OpenAI format - use regular request
+                            response = requests.post(endpoint, json=payload, headers=headers, timeout=120)
+                            logger.info(f"[AI Program {request_id}] Response status: {response.status_code}")
+                            if response.status_code != 200:
+                                logger.warning(f"[AI Program {request_id}] Non-200 response from {endpoint}: {response.status_code} - {response.text[:500]}")
+                                last_status_code = response.status_code
+                            if response.status_code == 200:
+                                break
                     except Exception as e:
                         last_error = str(e)
                         logger.warning(f"[AI Program {request_id}] Endpoint {endpoint} error: {e}")
 
                 # Check if successful
-                if response and response.status_code == 200:
+                if api_format == 'anthropic' and resp_json:
+                    break  # Anthropic streaming succeeded
+                if api_format != 'anthropic' and response and response.status_code == 200:
                     break
 
                 # Check if should retry
@@ -1442,29 +1575,44 @@ You are creating a new program. Start fresh and design the strategy based on use
                     yield f"data: {json.dumps({'type': 'retry', 'attempt': retry_attempt + 2, 'max_retries': API_MAX_RETRIES})}\n\n"
                     time.sleep(delay)
 
-            if not response or response.status_code != 200:
-                error_detail = f"No response (last_error: {last_error})" if last_error else "No response"
-                if response:
-                    error_detail = f"HTTP {response.status_code}: {response.text[:500]}"
-                logger.error(f"[AI Program {request_id}] API failed at round {tool_round}: {error_detail}")
+            # Check for failure
+            if api_format == 'anthropic':
+                if not resp_json:
+                    error_detail = f"No response (last_error: {last_error})" if last_error else "No response"
+                    logger.error(f"[AI Program {request_id}] API failed at round {tool_round}: {error_detail}")
 
-                # Save progress before returning - assistant_msg already created with is_complete=False
-                if tool_calls_log:
-                    analysis_markdown = _format_tool_calls_log(tool_calls_log, reasoning_snapshot)
-                    assistant_msg.content = analysis_markdown + f"\n\n**[Interrupted at round {tool_round}]** {error_detail}"
-                    assistant_msg.tool_calls_log = json.dumps(tool_calls_log)
-                    assistant_msg.reasoning_snapshot = reasoning_snapshot if reasoning_snapshot else None
-                    db.commit()
-                    # Send interrupted event with saved progress info
-                    yield f"data: {json.dumps({'type': 'interrupted', 'message_id': assistant_msg.id, 'round': tool_round, 'error': error_detail})}\n\n"
-                else:
-                    # No progress to save, delete empty assistant message
-                    db.delete(assistant_msg)
-                    db.commit()
-                    yield f"data: {json.dumps({'type': 'error', 'content': f'API request failed: {error_detail}'})}\n\n"
-                return
+                    if tool_calls_log:
+                        analysis_markdown = _format_tool_calls_log(tool_calls_log, reasoning_snapshot)
+                        assistant_msg.content = analysis_markdown + f"\n\n**[Interrupted at round {tool_round}]** {error_detail}"
+                        assistant_msg.tool_calls_log = json.dumps(tool_calls_log)
+                        assistant_msg.reasoning_snapshot = reasoning_snapshot if reasoning_snapshot else None
+                        db.commit()
+                        yield f"data: {json.dumps({'type': 'interrupted', 'message_id': assistant_msg.id, 'round': tool_round, 'error': error_detail})}\n\n"
+                    else:
+                        db.delete(assistant_msg)
+                        db.commit()
+                        yield f"data: {json.dumps({'type': 'error', 'content': f'API request failed: {error_detail}'})}\n\n"
+                    return
+            else:
+                if not response or response.status_code != 200:
+                    error_detail = f"No response (last_error: {last_error})" if last_error else "No response"
+                    if response:
+                        error_detail = f"HTTP {response.status_code}: {response.text[:500]}"
+                    logger.error(f"[AI Program {request_id}] API failed at round {tool_round}: {error_detail}")
 
-            resp_json = response.json()
+                    if tool_calls_log:
+                        analysis_markdown = _format_tool_calls_log(tool_calls_log, reasoning_snapshot)
+                        assistant_msg.content = analysis_markdown + f"\n\n**[Interrupted at round {tool_round}]** {error_detail}"
+                        assistant_msg.tool_calls_log = json.dumps(tool_calls_log)
+                        assistant_msg.reasoning_snapshot = reasoning_snapshot if reasoning_snapshot else None
+                        db.commit()
+                        yield f"data: {json.dumps({'type': 'interrupted', 'message_id': assistant_msg.id, 'round': tool_round, 'error': error_detail})}\n\n"
+                    else:
+                        db.delete(assistant_msg)
+                        db.commit()
+                        yield f"data: {json.dumps({'type': 'error', 'content': f'API request failed: {error_detail}'})}\n\n"
+                    return
+                resp_json = response.json()
 
             # Parse response based on API format
             if api_format == 'anthropic':
