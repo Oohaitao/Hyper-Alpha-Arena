@@ -1692,8 +1692,9 @@ async def run_backtest(request: BacktestRequest, db: Session = Depends(get_db)):
 
             triggers = engine._generate_trigger_events(config)
 
-            if not triggers:
-                yield f"data: {json.dumps({'type': 'error', 'message': 'No triggers generated'})}\n\n"
+            # Allow backtest with no signal triggers if scheduled triggers are enabled
+            if not triggers and not config.scheduled_interval:
+                yield f"data: {json.dumps({'type': 'error', 'message': 'No triggers generated. Add signal pools or enable scheduled trigger.'})}\n\n"
                 return
 
             # Create backtest record in database
