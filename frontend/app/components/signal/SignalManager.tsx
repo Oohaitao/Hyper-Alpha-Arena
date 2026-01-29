@@ -155,13 +155,19 @@ async function createPoolFromConfig(config: {
   return res.json()
 }
 
-async function fetchTriggerLogs(poolId?: number, limit = 50): Promise<SignalTriggerLog[]> {
-  const params = new URLSearchParams({ limit: String(limit) })
+async function fetchTriggerLogs(options: {
+  poolId?: number
+  symbol?: string
+  limit?: number
+  offset?: number
+} = {}): Promise<{ logs: SignalTriggerLog[]; total: number }> {
+  const { poolId, symbol, limit = 50, offset = 0 } = options
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
   if (poolId) params.set('pool_id', String(poolId))
+  if (symbol) params.set('symbol', symbol)
   const res = await fetch(`${API_BASE}/logs?${params}`)
   if (!res.ok) throw new Error('Failed to fetch logs')
-  const data = await res.json()
-  return data.logs
+  return res.json()
 }
 
 async function fetchPoolBacktest(poolId: number, symbol: string): Promise<any> {
@@ -349,14 +355,23 @@ export default function SignalManager() {
   // Market Regime state
   const [regimeLoading, setRegimeLoading] = useState(false)
 
+  // Trigger logs filter & pagination state
+  const [logsFilterPool, setLogsFilterPool] = useState<number | null>(null)
+  const [logsFilterSymbol, setLogsFilterSymbol] = useState<string>('')
+  const [logsTotal, setLogsTotal] = useState(0)
+  const [logsOffset, setLogsOffset] = useState(0)
+  const LOGS_PAGE_SIZE = 50
+
   const loadData = async () => {
     try {
       setLoading(true)
       const data = await fetchSignals()
       setSignals(data.signals)
       setPools(data.pools)
-      const logsData = await fetchTriggerLogs()
-      setLogs(logsData)
+      const logsData = await fetchTriggerLogs({ limit: LOGS_PAGE_SIZE, offset: 0 })
+      setLogs(logsData.logs)
+      setLogsTotal(logsData.total)
+      setLogsOffset(0)
     } catch (err) {
       toast.error('Failed to load signal data')
     } finally {
@@ -391,13 +406,54 @@ export default function SignalManager() {
     }
   }
 
-  // Silent refresh for logs only (no loading state)
-  const refreshLogsSilently = async () => {
+  // Silent refresh for logs only (no loading state, always fetches first page)
+  const refreshLogsSilently = async (poolId: number | null, symbol: string) => {
     try {
-      const logsData = await fetchTriggerLogs()
-      setLogs(logsData)
+      const logsData = await fetchTriggerLogs({
+        poolId: poolId ?? undefined,
+        symbol: symbol || undefined,
+        limit: LOGS_PAGE_SIZE,
+        offset: 0,
+      })
+      setLogs(logsData.logs)
+      setLogsTotal(logsData.total)
+      setLogsOffset(0)
     } catch {
       // Silent fail - don't interrupt user
+    }
+  }
+
+  // Load logs with filters (resets to first page)
+  const loadLogsWithFilters = async (poolId?: number | null, symbol?: string) => {
+    try {
+      const logsData = await fetchTriggerLogs({
+        poolId: poolId ?? undefined,
+        symbol: symbol || undefined,
+        limit: LOGS_PAGE_SIZE,
+        offset: 0,
+      })
+      setLogs(logsData.logs)
+      setLogsTotal(logsData.total)
+      setLogsOffset(0)
+    } catch {
+      toast.error('Failed to load logs')
+    }
+  }
+
+  // Load more logs (pagination)
+  const loadMoreLogs = async () => {
+    try {
+      const newOffset = logsOffset + LOGS_PAGE_SIZE
+      const logsData = await fetchTriggerLogs({
+        poolId: logsFilterPool ?? undefined,
+        symbol: logsFilterSymbol || undefined,
+        limit: LOGS_PAGE_SIZE,
+        offset: newOffset,
+      })
+      setLogs(prev => [...prev, ...logsData.logs])
+      setLogsOffset(newOffset)
+    } catch {
+      toast.error('Failed to load more logs')
     }
   }
 
@@ -451,9 +507,11 @@ export default function SignalManager() {
   // Auto-refresh logs only when on logs tab (silent, no loading)
   useEffect(() => {
     if (activeTab !== 'logs') return
-    const interval = setInterval(refreshLogsSilently, 15000)
+    const interval = setInterval(() => {
+      refreshLogsSilently(logsFilterPool, logsFilterSymbol)
+    }, 15000)
     return () => clearInterval(interval)
-  }, [activeTab])
+  }, [activeTab, logsFilterPool, logsFilterSymbol])
 
   // Fetch metric analysis when dialog opens or metric/period/symbol changes
   useEffect(() => {
@@ -1093,12 +1151,54 @@ export default function SignalManager() {
 
         <TabsContent value="logs" className="flex-1">
           <Card className="h-full flex flex-col">
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2">
                 <Activity className="w-5 h-5" />{t('signals.triggerHistory', 'Trigger History')}
               </CardTitle>
+              {/* Filter controls */}
+              <div className="flex items-center gap-3 mt-2">
+                <Select
+                  value={logsFilterPool === null ? 'all' : String(logsFilterPool)}
+                  onValueChange={(v) => {
+                    const poolId = v === 'all' ? null : Number(v)
+                    setLogsFilterPool(poolId)
+                    loadLogsWithFilters(poolId, logsFilterSymbol)
+                  }}
+                >
+                  <SelectTrigger className="w-[180px] h-8">
+                    <SelectValue placeholder={t('signals.allPools', 'All Pools')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t('signals.allPools', 'All Pools')}</SelectItem>
+                    {pools.map(p => (
+                      <SelectItem key={p.id} value={String(p.id)}>{p.pool_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={logsFilterSymbol || 'all'}
+                  onValueChange={(v) => {
+                    const symbol = v === 'all' ? '' : v
+                    setLogsFilterSymbol(symbol)
+                    loadLogsWithFilters(logsFilterPool, symbol)
+                  }}
+                >
+                  <SelectTrigger className="w-[120px] h-8">
+                    <SelectValue placeholder={t('signals.allSymbols', 'All Symbols')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t('signals.allSymbols', 'All Symbols')}</SelectItem>
+                    {watchlistSymbols.map(s => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {t('signals.logsCount', '{{count}} logs', { count: logsTotal })}
+                </span>
+              </div>
             </CardHeader>
-            <CardContent className="flex-1 overflow-hidden">
+            <CardContent className="flex-1 overflow-hidden pt-2">
               {logs.length === 0 ? (
                 <p className="text-muted-foreground text-center py-8">{t('signals.noTriggers', 'No triggers recorded yet')}</p>
               ) : (
@@ -1204,6 +1304,14 @@ export default function SignalManager() {
                         </div>
                       )
                     })}
+                    {/* Load more button */}
+                    {logs.length < logsTotal && (
+                      <div className="flex justify-center pt-2">
+                        <Button variant="outline" size="sm" onClick={loadMoreLogs}>
+                          {t('signals.loadMore', 'Load More')} ({logs.length}/{logsTotal})
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </ScrollArea>
               )}

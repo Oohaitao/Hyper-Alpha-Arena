@@ -138,7 +138,7 @@ class BacktestResult:
     winning_trades: int = 0
     losing_trades: int = 0
     win_rate: float = 0.0
-    profit_factor: float = 0.0             # Total profit / Total loss
+    profit_factor: Optional[float] = None  # Total profit / Total loss (None if no losses)
     avg_win: float = 0.0
     avg_loss: float = 0.0
     largest_win: float = 0.0

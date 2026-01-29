@@ -666,7 +666,8 @@ class ProgramBacktestEngine:
         # Profit factor
         total_profit = sum(t.pnl for t in winning_trades)
         total_loss = abs(sum(t.pnl for t in losing_trades))
-        profit_factor = (total_profit / total_loss) if total_loss > 0 else float('inf') if total_profit > 0 else 0
+        # When total_loss is 0, profit_factor is undefined (use None to avoid JSON Infinity issue)
+        profit_factor = (total_profit / total_loss) if total_loss > 0 else None
 
         # Average win/loss
         avg_win = (total_profit / len(winning_trades)) if winning_trades else 0

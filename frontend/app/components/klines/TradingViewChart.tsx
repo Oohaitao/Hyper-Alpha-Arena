@@ -1288,13 +1288,27 @@ export default function TradingViewChart({
   }, [selectedIndicators, activeSubplot])
 
   // Fetch market flow indicator data with loading state
+  // Time range is derived from chartData to match K-line visible range
   const fetchFlowData = async (indicator: string) => {
     if (!indicator || !symbol) return
 
     onIndicatorLoadingChange?.(true)
     try {
-      const endTime = Date.now()
-      const startTime = endTime - 7 * 24 * 60 * 60 * 1000 // 7 days
+      // Use chartData time range if available, otherwise fallback to 7 days
+      let startTime: number
+      let endTime: number
+
+      if (chartData.length > 0) {
+        // chartData.time is in seconds (TradingView format), convert to milliseconds
+        const firstTime = chartData[0].time
+        const lastTime = chartData[chartData.length - 1].time
+        startTime = (typeof firstTime === 'number' ? firstTime : new Date(firstTime).getTime() / 1000) * 1000
+        endTime = (typeof lastTime === 'number' ? lastTime : new Date(lastTime).getTime() / 1000) * 1000
+      } else {
+        endTime = Date.now()
+        startTime = endTime - 7 * 24 * 60 * 60 * 1000
+      }
+
       const response = await fetch(
         `/api/market-flow/indicators?symbol=${symbol}&timeframe=${period}&start_time=${startTime}&end_time=${endTime}&indicators=${indicator}`
       )
@@ -1662,9 +1676,9 @@ export default function TradingViewChart({
     }
   }, [activeFlowIndicator])
 
-  // Re-fetch flow data when symbol or period changes
+  // Re-fetch flow data when symbol, period, or chartData changes
   useEffect(() => {
-    if (selectedFlowIndicators.length > 0 && flowPaneRef.current) {
+    if (selectedFlowIndicators.length > 0 && flowPaneRef.current && chartData.length > 0) {
       // Clear all flow series data first (consistent with main chart behavior)
       if (flowCvdSeriesRef.current) flowCvdSeriesRef.current.setData([])
       if (flowTakerBuySeriesRef.current) flowTakerBuySeriesRef.current.setData([])
@@ -1680,7 +1694,7 @@ export default function TradingViewChart({
         fetchFlowData(activeFlowIndicator)
       }
     }
-  }, [symbol, period])
+  }, [symbol, period, chartData.length])
 
   return (
     <div className="relative w-full h-full">

@@ -820,7 +820,7 @@ market_flow_collector = MarketFlowCollector()
 
 
 # Data retention settings
-DATA_RETENTION_DAYS = 30
+DATA_RETENTION_DAYS = 365
 
 
 def cleanup_old_market_flow_data():

@@ -410,11 +410,12 @@ def get_trigger_logs(
     signal_id: Optional[int] = Query(None),
     symbol: Optional[str] = Query(None),
     limit: int = Query(100, le=500),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db)
 ):
-    """Get signal trigger logs with optional filters"""
+    """Get signal trigger logs with optional filters and pagination"""
     conditions = []
-    params = {"limit": limit}
+    params = {"limit": limit, "offset": offset}
 
     if pool_id is not None:
         conditions.append("pool_id = :pool_id")
@@ -430,7 +431,7 @@ def get_trigger_logs(
     query = f"""
         SELECT id, signal_id, pool_id, symbol, trigger_value, triggered_at, market_regime
         FROM signal_trigger_logs {where_clause}
-        ORDER BY triggered_at DESC LIMIT :limit
+        ORDER BY triggered_at DESC LIMIT :limit OFFSET :offset
     """
     import json
     result = db.execute(text(query), params)
@@ -458,7 +459,7 @@ def get_trigger_logs(
 
     # Get total count
     count_query = f"SELECT COUNT(*) FROM signal_trigger_logs {where_clause}"
-    count_params = {k: v for k, v in params.items() if k != "limit"}
+    count_params = {k: v for k, v in params.items() if k not in ("limit", "offset")}
     total = db.execute(text(count_query), count_params).scalar()
 
     return SignalTriggerLogsResponse(logs=logs, total=total)

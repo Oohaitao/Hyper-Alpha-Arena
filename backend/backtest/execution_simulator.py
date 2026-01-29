@@ -157,22 +157,28 @@ class ExecutionSimulator:
                 close_side = "sell" if pos.side == "long" else "buy"
                 executed_price, _ = self.calculate_execution_price(order.trigger_price, close_side)
 
-                # Calculate fee for this portion
-                notional = order.size * executed_price
+                # Use actual close size (min of order size and remaining position)
+                actual_close_size = min(order.size, pos.size)
+                if actual_close_size <= 0:
+                    orders_to_remove.append(order.order_id)
+                    continue
+
+                # Calculate fee for actual close size
+                notional = actual_close_size * executed_price
                 fee = self.calculate_fee(notional)
 
                 # Partial close position using order's entry price for accurate PnL
                 pnl = account.partial_close_position(
                     symbol=symbol,
-                    size=order.size,
+                    size=actual_close_size,
                     exit_price=executed_price,
                     fee=fee,
                     entry_price=order.entry_price,
                 )
 
                 if pnl is not None:
-                    # Calculate PnL percent based on this order's entry
-                    entry_notional = order.size * order.entry_price
+                    # Calculate PnL percent based on actual close size
+                    entry_notional = actual_close_size * order.entry_price
                     pnl_percent = (pnl / entry_notional * 100) if entry_notional > 0 else 0
 
                     exit_reason = "tp" if order.order_type == "take_profit" else "sl"
@@ -183,7 +189,7 @@ class ExecutionSimulator:
                         operation="close",
                         side=pos.side,
                         entry_price=order.entry_price,
-                        size=order.size,
+                        size=actual_close_size,
                         leverage=pos.leverage,
                         exit_price=executed_price,
                         exit_timestamp=timestamp,
@@ -267,14 +273,20 @@ class ExecutionSimulator:
                     close_side = "sell" if pos.side == "long" else "buy"
                     executed_price, _ = self.calculate_execution_price(trigger_price, close_side)
 
-                    # Calculate fee
-                    notional = order.size * executed_price
+                    # Use actual close size (min of order size and remaining position)
+                    actual_close_size = min(order.size, pos.size)
+                    if actual_close_size <= 0:
+                        orders_to_remove.append(order.order_id)
+                        continue
+
+                    # Calculate fee for actual close size
+                    notional = actual_close_size * executed_price
                     fee = self.calculate_fee(notional)
 
                     # Partial close position
                     pnl = account.partial_close_position(
                         symbol=symbol,
-                        size=order.size,
+                        size=actual_close_size,
                         exit_price=executed_price,
                         fee=fee,
                         entry_price=order.entry_price,
@@ -295,7 +307,7 @@ class ExecutionSimulator:
                                     kline_prices[pos_symbol] = other_price
                         account.update_equity(kline_prices)
 
-                        entry_notional = order.size * order.entry_price
+                        entry_notional = actual_close_size * order.entry_price
                         pnl_percent = (pnl / entry_notional * 100) if entry_notional > 0 else 0
 
                         exit_reason = "tp" if order.order_type == "take_profit" else "sl"
@@ -306,7 +318,7 @@ class ExecutionSimulator:
                             operation="close",
                             side=pos.side,
                             entry_price=order.entry_price,
-                            size=order.size,
+                            size=actual_close_size,
                             leverage=pos.leverage,
                             exit_price=executed_price,
                             exit_timestamp=kline_time_ms,
@@ -364,9 +376,11 @@ class ExecutionSimulator:
         if operation == "close":
             if not has_position:
                 return None
+            target_portion = getattr(decision, 'target_portion_of_balance', 1.0)
             return self._execute_close(
                 account, symbol, current_price, timestamp,
-                trigger_type, pool_name, triggered_signals, decision.reason
+                trigger_type, pool_name, triggered_signals, decision.reason,
+                target_portion=target_portion
             )
 
         # Handle buy/sell operations
@@ -380,10 +394,11 @@ class ExecutionSimulator:
                         account, decision, current_price, timestamp,
                         trigger_type, pool_name, triggered_signals
                     )
-                # If opposite direction, close existing first
+                # If opposite direction, close existing first (full close)
                 self._execute_close(
                     account, symbol, current_price, timestamp,
-                    trigger_type, pool_name, triggered_signals, "Reverse position"
+                    trigger_type, pool_name, triggered_signals, "Reverse position",
+                    target_portion=1.0
                 )
 
             return self._execute_open(
@@ -576,32 +591,57 @@ class ExecutionSimulator:
         pool_name: Optional[str],
         triggered_signals: Optional[List[str]],
         reason: str = "",
+        target_portion: float = 1.0,
     ) -> Optional[BacktestTradeRecord]:
-        """Execute position close."""
+        """
+        Execute position close (full or partial).
+
+        Args:
+            target_portion: Portion of position to close (0.0-1.0).
+                           1.0 = full close, 0.3 = close 30% of position.
+        """
         pos = account.get_position(symbol)
         if not pos:
+            return None
+
+        # Calculate close size based on target_portion (matches real trading system)
+        close_size = pos.size * target_portion
+        if close_size <= 0:
             return None
 
         # Calculate execution price with slippage
         close_side = "sell" if pos.side == "long" else "buy"
         exec_price, _ = self.calculate_execution_price(current_price, close_side)
 
-        # Calculate fee
-        notional = pos.size * exec_price
+        # Calculate fee for the portion being closed
+        notional = close_size * exec_price
         fee = self.calculate_fee(notional)
 
         # Store position info before closing
         entry_price = pos.entry_price
-        size = pos.size
         leverage = pos.leverage
         side = pos.side
         entry_ts = pos.entry_timestamp
 
-        # Close position
-        pnl = account.close_position(symbol, exec_price, fee)
+        # Close position (full or partial)
+        if target_portion >= 1.0:
+            # Full close
+            pnl = account.close_position(symbol, exec_price, fee)
+        else:
+            # Partial close
+            pnl = account.partial_close_position(
+                symbol=symbol,
+                size=close_size,
+                exit_price=exec_price,
+                fee=fee,
+                entry_price=entry_price,
+            )
+
+        if pnl is None:
+            return None
 
         # Calculate PnL percent
-        entry_notional = size * entry_price
+        entry_notional = close_size * entry_price
         pnl_percent = (pnl / entry_notional * 100) if entry_notional > 0 else 0
 
         return BacktestTradeRecord(
@@ -611,7 +651,7 @@ class ExecutionSimulator:
             operation="close",
             side=side,
             entry_price=entry_price,
-            size=size,
+            size=close_size,
             leverage=leverage,
             exit_price=exec_price,
             exit_timestamp=timestamp,
