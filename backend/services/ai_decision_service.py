@@ -140,6 +140,10 @@ def get_max_tokens(model: str) -> int:
     if 'qwen' in model_lower:
         return 8000
 
+    # GLM series (Z.ai models like GLM-4.7)
+    if 'glm' in model_lower:
+        return 16000
+
     # Deepseek-chat
     if 'deepseek' in model_lower:
         return 8000
