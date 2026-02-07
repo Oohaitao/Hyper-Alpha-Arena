@@ -2,6 +2,7 @@
 Account and Asset Curve API Routes (Cleaned)
 """
 
+from sys import stdout
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -778,7 +779,6 @@ async def test_llm_connection(payload: dict):
         model = payload.get("model", "gpt-3.5-turbo")
         base_url = payload.get("base_url", "https://api.openai.com/v1")
         api_key = payload.get("api_key", "")
-
         if not api_key:
             return {"success": False, "message": "API key is required"}
 
@@ -791,6 +791,7 @@ async def test_llm_connection(payload: dict):
 
         # Detect API format from URL
         endpoint, api_format = detect_api_format(base_url)
+        print(f"Detected endpoint: {endpoint}, API format: {api_format}")
         if not endpoint:
             return {"success": False, "message": "Invalid base URL"}
 
@@ -810,7 +811,7 @@ async def test_llm_connection(payload: dict):
 
             is_o1_series = any(x in model_lower for x in ['o1-preview', 'o1-mini', 'o1-'])
             is_new_model = is_reasoning_model or any(x in model_lower for x in ['gpt-4o'])
-
+            print(f"is_reasoning_model: {is_reasoning_model}, is_o1_series: {is_o1_series}, is_new_model: {is_new_model}")
             if api_format == 'anthropic':
                 # Anthropic native format
                 headers = {
@@ -827,10 +828,19 @@ async def test_llm_connection(payload: dict):
                 }
             else:
                 # OpenAI compatible format
-                headers = {
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {api_key}"
-                }
+                if(model == 'deepseek-v3.2'):
+                    headers = {
+                        "User-Agent": "codex_cli_rs/0.93.0 (Debian 12.0.0; x86_64) xterm",
+                        "originator": "codex_cli_rs",
+                        "Accept": "text/event-stream",
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {api_key}"
+                    }
+                else:
+                    headers = {
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {api_key}"
+                    }
                 if is_o1_series:
                     payload_data = {
                         "model": model,
@@ -842,8 +852,7 @@ async def test_llm_connection(payload: dict):
                     payload_data = {
                         "model": model,
                         "messages": [
-                            {"role": "system", "content": "You are a helpful assistant."},
-                            {"role": "user", "content": "Say 'Connection test successful' if you can read this."}
+                            {"role": "system", "content": "hellow."}
                         ]
                     }
 
