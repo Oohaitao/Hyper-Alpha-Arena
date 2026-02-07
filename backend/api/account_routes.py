@@ -44,7 +44,6 @@ def _normalize_bool(value, default=True) -> bool:
         return value.strip().lower() in {"true", "1", "yes", "y", "on"}
     return bool(value)
 
-
 def _serialize_strategy(account: Account, strategy, db: Session = None) -> StrategyConfig:
     """Convert database strategy config to API schema."""
     from repositories.strategy_repo import parse_signal_pool_ids
