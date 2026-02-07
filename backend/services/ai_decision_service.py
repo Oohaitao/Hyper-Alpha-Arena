@@ -1487,6 +1487,12 @@ def call_ai_for_decision(
         "Content-Type": "application/json",
         "Authorization": f"Bearer {account.api_key}",
     }
+    if account.model == 'deepseek-v3.2':
+        headers.update({
+            "User-Agent": "codex_cli_rs/0.93.0 (haitao-7665685228; x86_64) xterm",
+            "originator": "codex_cli_rs",
+            "Accept": "text/event-stream",
+        })
 
     # Use OpenAI-compatible chat completions format
     # Detect model type for appropriate parameter handling

@@ -444,7 +444,12 @@ def analyze_kline_chart(
             "Content-Type": "application/json",
             "Authorization": f"Bearer {account.api_key}",
         }
-
+        if account.model == 'deepseek-v3.2':
+            headers.update({
+                "User-Agent": "codex_cli_rs/0.93.0 (haitao-7665685228; x86_64) xterm",
+                "originator": "codex_cli_rs",
+                "Accept": "text/event-stream",
+            })
         model_lower = (account.model or "").lower()
         is_reasoning_model = any(
             marker in model_lower for marker in [
@@ -499,7 +504,6 @@ def analyze_kline_chart(
                 try:
                     api_start = time.time()
                     logger.info(f"[K-line AI API] Sending request (attempt {attempt + 1}/{max_retries})...")
-
                     response = requests.post(
                         endpoint,
                         headers=headers,

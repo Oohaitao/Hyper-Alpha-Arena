@@ -827,20 +827,16 @@ async def test_llm_connection(payload: dict):
                     ]
                 }
             else:
-                # OpenAI compatible format
-                if(model == 'deepseek-v3.2'):
-                    headers = {
-                        "User-Agent": "codex_cli_rs/0.93.0 (Debian 12.0.0; x86_64) xterm",
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {api_key}"
+                }
+                if model == 'deepseek-v3.2':
+                    headers.update({
+                        "User-Agent": "codex_cli_rs/0.93.0 (haitao-7665685228; x86_64) xterm",
                         "originator": "codex_cli_rs",
                         "Accept": "text/event-stream",
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {api_key}"
-                    }
-                else:
-                    headers = {
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {api_key}"
-                    }
+                    })
                 if is_o1_series:
                     payload_data = {
                         "model": model,

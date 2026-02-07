@@ -701,6 +701,12 @@ def generate_attribution_analysis_stream(
             "Content-Type": "application/json",
             "Authorization": f"Bearer {account.api_key}"
         }
+        if account.model == 'deepseek-v3.2':
+            headers.update({
+                "User-Agent": "codex_cli_rs/0.93.0 (haitao-7665685228; x86_64) xterm",
+                "originator": "codex_cli_rs",
+                "Accept": "text/event-stream",
+            })
 
         # Function calling loop
         max_rounds = 15
@@ -876,4 +882,3 @@ def get_attribution_messages(db: Session, conversation_id: int, user_id: int = 1
         result.append(msg_dict)
 
     return result
-
