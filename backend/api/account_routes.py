@@ -57,6 +57,7 @@ def _serialize_strategy(account: Account, strategy, db: Session = None) -> Strat
     else:
         last_iso = None
 
+
     # Get signal pool IDs (new format with fallback)
     pool_ids = parse_signal_pool_ids(strategy)
 
