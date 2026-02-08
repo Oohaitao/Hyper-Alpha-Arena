@@ -42,7 +42,6 @@ import ProgramTrader from '@/components/program/ProgramTrader'
 import SettingsPage from '@/components/settings/SettingsPage'
 // Remove CallbackPage import - handle inline
 import { AIDecision, getAccounts, checkMainnetAccounts, approveBuilder, type UnauthorizedAccount } from '@/lib/api'
-import { AuthorizationModal } from '@/components/hyperliquid'
 import { ArenaDataProvider } from '@/contexts/ArenaDataContext'
 import { TradingModeProvider, useTradingMode } from '@/contexts/TradingModeContext'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
@@ -719,12 +718,7 @@ function App() {
           {renderMainContent()}
         </div>
       </div>
-      <AuthorizationModal
-        isOpen={authModalOpen}
-        onClose={handleAuthModalClose}
-        unauthorizedAccounts={unauthorizedAccounts}
-        onAuthorizationComplete={handleAuthorizationComplete}
-      />
+      
     </>
   )
 }
