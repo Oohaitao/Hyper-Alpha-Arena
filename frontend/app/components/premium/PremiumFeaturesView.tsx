@@ -47,8 +47,8 @@ export default function PremiumFeaturesView({ onAccountUpdated, onPageChange }: 
   ]
 
   // Determine if user has premium subscription
-  const isPremium = membership?.status === 'ACTIVE'
-  const maxAllowedDepth = isPremium ? 60 : 10
+  const isPremium = true
+  const maxAllowedDepth = 60
   const subscriptionEndDate = membership?.currentPeriodEnd
 
   useEffect(() => {
@@ -83,32 +83,11 @@ export default function PremiumFeaturesView({ onAccountUpdated, onPageChange }: 
   }
 
   const handlePromptToolClick = () => {
-    // Check if user is logged in
-    if (!user) {
-      toast.error('Please log in to use this feature')
-      return
-    }
-
-    // Limited Time Free - skip premium check
-    // Navigate to prompt page
     onPageChange?.('prompt-management')
   }
 
   const handleSaveConfiguration = async (section: string) => {
     if (section === 'sampling-pool') {
-      // Check if user is logged in
-      if (!user) {
-        toast.error('Please log in to save configuration')
-        // Could add login redirect logic here
-        return
-      }
-
-      // Check premium requirement - show modal instead of direct redirect
-      if (samplingDepth > 10 && !isPremium) {
-        setShowPremiumModal(true)
-        return
-      }
-
       setIsSaving(true)
       try {
         const response = await fetch(`/api/config/global-sampling`, {
@@ -168,20 +147,20 @@ export default function PremiumFeaturesView({ onAccountUpdated, onPageChange }: 
                 )}
               </div>
               <p className="text-muted-foreground">
-                {t('premium.subscriptionDesc', 'Continuous development requires financial support. Subscribe to unlock:')}
+                {t('premium.subscriptionDesc', '')}
               </p>
               <div className="flex flex-wrap gap-3 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Target className="w-4 h-4" />
-                  <span>{t('premium.advancedDataAnalysis', 'Advanced data analysis')}</span>
+                  <span>{t('premium.advancedDataAnalysis', '')}</span>
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Clock className="w-4 h-4" />
-                  <span>{t('premium.prioritySupport', 'Priority technical support')}</span>
+                  <span>{t('premium.prioritySupport', '')}</span>
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <TrendingUp className="w-4 h-4" />
-                  <span>{t('premium.featureRequestPriority', 'Feature request priority')}</span>
+                  <span>{t('premium.featureRequestPriority', '')}</span>
                 </div>
               </div>
             </div>
@@ -229,11 +208,11 @@ export default function PremiumFeaturesView({ onAccountUpdated, onPageChange }: 
                       <Percent className="w-5 h-5 text-blue-500" />
                       {t('premium.serviceFee', 'Service Fee')}
                       {isPremium && (
-                        <Badge className="bg-green-500 text-white text-xs">FREE</Badge>
+                        <Badge className="bg-green-500 text-white text-xs"></Badge>
                       )}
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      {t('premium.serviceFeeDesc', 'A small fee per trade supports long-term project development and maintenance')}
+                      {t('premium.serviceFeeDesc', '')}
                     </CardDescription>
                   </div>
                 </CardHeader>
@@ -345,7 +324,7 @@ export default function PremiumFeaturesView({ onAccountUpdated, onPageChange }: 
                     <CardTitle className="flex items-center gap-2 text-lg">
                       <Sparkles className="w-5 h-5 text-purple-500" />
                       {t('premium.aiPromptGenerator', 'AI Prompt Generator')}
-                      <Badge className="bg-green-500 text-white text-xs">{t('premium.limitedTimeFree', 'Limited Time Free')}</Badge>
+                      <Badge className="bg-green-500 text-white text-xs">{t('premium.limitedTimeFree', '')}</Badge>
                     </CardTitle>
                     <CardDescription className="text-xs">
                       {t('premium.aiPromptGeneratorDesc', 'Generate professional trading strategy prompts through natural language conversation with AI')}
@@ -393,7 +372,7 @@ export default function PremiumFeaturesView({ onAccountUpdated, onPageChange }: 
                   <div className="space-y-1">
                     <CardTitle className="flex items-center gap-2 text-lg">
                       {t('premium.technicalIndicatorsSuite', 'Technical Indicators Suite')}
-                      <Badge className="bg-green-500 text-white text-xs">{t('premium.limitedTimeFree', 'Limited Time Free')}</Badge>
+                      <Badge className="bg-green-500 text-white text-xs">{t('premium.limitedTimeFree', '')}</Badge>
                     </CardTitle>
                     <CardDescription className="text-xs">
                       {t('premium.technicalIndicatorsDesc', '11 professional-grade technical indicators across trend, momentum, and volatility analysis')}
@@ -437,7 +416,7 @@ export default function PremiumFeaturesView({ onAccountUpdated, onPageChange }: 
                   <div className="space-y-1">
                     <CardTitle className="flex items-center gap-2 text-lg">
                       {t('premium.aiQuantAnalysis', 'AI Quantitative Analysis')}
-                      <Badge className="bg-green-500 text-white text-xs">{t('premium.limitedTimeFree', 'Limited Time Free')}</Badge>
+                      <Badge className="bg-green-500 text-white text-xs">{t('premium.limitedTimeFree', '')}</Badge>
                     </CardTitle>
                     <CardDescription className="text-xs">
                       {t('premium.aiQuantAnalysisDesc', 'Deep learning-powered market microstructure analysis with multi-dimensional signal extraction')}
@@ -509,7 +488,7 @@ export default function PremiumFeaturesView({ onAccountUpdated, onPageChange }: 
                     <CardTitle className="flex items-center gap-2 text-lg">
                       <Zap className="w-5 h-5 text-yellow-500" />
                       {t('premium.aiSignalGenerator', 'AI Signal Generator')}
-                      <Badge className="bg-green-500 text-white text-xs">{t('premium.limitedTimeFree', 'Limited Time Free')}</Badge>
+                      <Badge className="bg-green-500 text-white text-xs">{t('premium.limitedTimeFree', '')}</Badge>
                     </CardTitle>
                     <CardDescription className="text-xs">
                       {t('premium.aiSignalGeneratorDesc', 'Transform trading ideas into executable signals using natural language - no technical knowledge required')}

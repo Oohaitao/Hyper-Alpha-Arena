@@ -935,49 +935,7 @@ async def configure_account_wallet(
 
             logger.info(f"Updated {request.environment} wallet for account {account.name} (ID: {account_id}), address: {wallet_address}")
 
-            # Builder binding for mainnet wallet after successful save
             requires_auth = False
-            if request.environment == 'mainnet':
-                try:
-                    print(f"[BUILDER_AUTH] Checking authorization after wallet save for account {account_id}, wallet={wallet_address}")
-                    from config.settings import HYPERLIQUID_BUILDER_CONFIG
-                    import requests
-
-                    # Check authorization status
-                    response = requests.post(
-                        "https://api.hyperliquid.xyz/info",
-                        json={
-                            "type": "maxBuilderFee",
-                            "user": wallet_address,
-                            "builder": HYPERLIQUID_BUILDER_CONFIG.builder_address
-                        },
-                        timeout=10
-                    )
-                    max_fee = response.json()
-
-                    if max_fee < HYPERLIQUID_BUILDER_CONFIG.builder_fee:
-                        print(f"[BUILDER_AUTH] Not authorized (max_fee={max_fee} < required={HYPERLIQUID_BUILDER_CONFIG.builder_fee}), triggering authorization")
-
-                        # Execute authorization
-                        client = get_hyperliquid_client(db, account_id, override_environment="mainnet")
-                        fee_percentage = f"{HYPERLIQUID_BUILDER_CONFIG.builder_fee / 10 / 100}%"
-                        result = client.sdk_exchange.approve_builder_fee(
-                            HYPERLIQUID_BUILDER_CONFIG.builder_address,
-                            fee_percentage
-                        )
-
-                        # Check if authorization failed
-                        is_success = not (isinstance(result, dict) and result.get('status') == 'err')
-                        if is_success:
-                            print(f"[BUILDER_AUTH] Authorization completed for account {account_id}: {result}")
-                        else:
-                            print(f"[BUILDER_AUTH] Authorization FAILED for account {account_id}: {result}")
-                            requires_auth = True
-                    else:
-                        print(f"[BUILDER_AUTH] Already authorized for account {account_id} (max_fee={max_fee})")
-                except Exception as e:
-                    print(f"[BUILDER_AUTH] Authorization failed for account {account_id}: {type(e).__name__}: {e}")
-                    requires_auth = True
 
             return WalletConfigResponse(
                 success=True,
@@ -1007,49 +965,7 @@ async def configure_account_wallet(
 
             logger.info(f"Created {request.environment} wallet for account {account.name} (ID: {account_id}), address: {wallet_address}")
 
-            # Builder binding for mainnet wallet after successful save
             requires_auth = False
-            if request.environment == 'mainnet':
-                try:
-                    print(f"[BUILDER_AUTH] Checking authorization after wallet save for account {account_id}, wallet={wallet_address}")
-                    from config.settings import HYPERLIQUID_BUILDER_CONFIG
-                    import requests
-
-                    # Check authorization status
-                    response = requests.post(
-                        "https://api.hyperliquid.xyz/info",
-                        json={
-                            "type": "maxBuilderFee",
-                            "user": wallet_address,
-                            "builder": HYPERLIQUID_BUILDER_CONFIG.builder_address
-                        },
-                        timeout=10
-                    )
-                    max_fee = response.json()
-
-                    if max_fee < HYPERLIQUID_BUILDER_CONFIG.builder_fee:
-                        print(f"[BUILDER_AUTH] Not authorized (max_fee={max_fee} < required={HYPERLIQUID_BUILDER_CONFIG.builder_fee}), triggering authorization")
-
-                        # Execute authorization
-                        client = get_hyperliquid_client(db, account_id, override_environment="mainnet")
-                        fee_percentage = f"{HYPERLIQUID_BUILDER_CONFIG.builder_fee / 10 / 100}%"
-                        result = client.sdk_exchange.approve_builder_fee(
-                            HYPERLIQUID_BUILDER_CONFIG.builder_address,
-                            fee_percentage
-                        )
-
-                        # Check if authorization failed
-                        is_success = not (isinstance(result, dict) and result.get('status') == 'err')
-                        if is_success:
-                            print(f"[BUILDER_AUTH] Authorization completed for account {account_id}: {result}")
-                        else:
-                            print(f"[BUILDER_AUTH] Authorization FAILED for account {account_id}: {result}")
-                            requires_auth = True
-                    else:
-                        print(f"[BUILDER_AUTH] Already authorized for account {account_id} (max_fee={max_fee})")
-                except Exception as e:
-                    print(f"[BUILDER_AUTH] Authorization failed for account {account_id}: {type(e).__name__}: {e}")
-                    requires_auth = True
 
             return WalletConfigResponse(
                 success=True,
@@ -1337,4 +1253,3 @@ async def get_all_wallets(db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Failed to get all wallets: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get wallets: {str(e)}")
-

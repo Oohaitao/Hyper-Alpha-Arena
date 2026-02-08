@@ -33,8 +33,7 @@ DEFAULT_TRADING_CONFIGS: Dict[str, MarketConfig] = {
 # Hyperliquid Builder Fee Configuration
 HYPERLIQUID_BUILDER_CONFIG = HyperliquidBuilderConfig(
     builder_address=os.getenv(
-        "HYPERLIQUID_BUILDER_ADDRESS",
-        "0x012E82f81e506b8f0EF69FF719a6AC65822b5924"
+        "HYPERLIQUID_BUILDER_ADDRESS",""
     ),
     builder_fee=int(os.getenv("HYPERLIQUID_BUILDER_FEE", "30"))  # 0.03% default
 )

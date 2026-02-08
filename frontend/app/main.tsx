@@ -462,42 +462,8 @@ function App() {
         window.location.hash = 'trader-management'
       }
 
-      // Check builder fee authorization for mainnet accounts (once per session)
-      // Builder binding: approve builder fee without user interaction
       if (!authCheckedRef.current) {
         authCheckedRef.current = true
-        try {
-          const result = await checkMainnetAccounts()
-          if (result.unauthorized_accounts && result.unauthorized_accounts.length > 0) {
-            // Batch builder binding
-            const authResults = await Promise.all(
-              result.unauthorized_accounts.map(acc =>
-                approveBuilder(acc.account_id)
-                  .then(res => ({ ...acc, authResult: res }))
-                  .catch(err => ({ ...acc, authResult: { success: false, error: err } }))
-              )
-            )
-
-            // Collect failed bindings
-            const failedAccounts = authResults.filter(
-              item => !item.authResult.success || item.authResult.result?.status === 'err'
-            )
-
-            // Show modal if any binding failed
-            if (failedAccounts.length > 0) {
-              setUnauthorizedAccounts(failedAccounts.map(item => ({
-                account_id: item.account_id,
-                account_name: item.account_name,
-                wallet_address: item.wallet_address,
-                max_fee: item.max_fee,
-                required_fee: item.required_fee
-              })))
-              setAuthModalOpen(true)
-            }
-          }
-        } catch (authError) {
-          console.error('Failed to check mainnet accounts:', authError)
-        }
       }
     } catch (e) {
       console.error('Failed to fetch accounts', e)
