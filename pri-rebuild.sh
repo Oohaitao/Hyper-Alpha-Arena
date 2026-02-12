@@ -17,7 +17,9 @@ docker rm -f hyper-arena-app 2>/dev/null || echo "⚠️ 容器 'hyper-arena-app
 echo "✅ 容器清理完成"
 sleep 2
 
-# 步骤 3: 清理悬空镜像（不会删除正在使用的镜像）
+# 步骤 3: 清理hyper-alpha-arena_app和悬空镜像（不会删除正在使用的镜像）
+docker rmi hyper-alpha-arena_app
+echo "✅ hyper-alpha-arena_app镜像已清理"
 echo -e "\n[3/4] 清理悬空 Docker 镜像..."
 docker image prune -f
 echo "✅ 悬空镜像已清理"
