@@ -452,90 +452,44 @@ MAX_LEVERAGE_PLACEHOLDER = "__MAX_LEVERAGE__"
 
 # Complete OUTPUT FORMAT template with all requirements and examples
 # Uses double-brace escaping for JSON literals to avoid format_map() conflicts
-OUTPUT_FORMAT_COMPLETE = """Respond with ONLY a JSON object using this schema (always emitting the `decisions` array even if it is empty):
-{{
-  "decisions": [
-    {{
-      "operation": "buy" | "sell" | "hold" | "close",
-      "symbol": "<__SYMBOL_SET__>",
-      "target_portion_of_balance": <float 0.0-1.0>,
-      "leverage": <integer 1-__MAX_LEVERAGE__>,
-      "max_price": <number, required for "buy" operations>,
-      "min_price": <number, required for "sell"/"close" operations>,
-      "time_in_force": "Ioc" | "Gtc" | "Alo",
-      "take_profit_price": <number, optional>,
-      "stop_loss_price": <number, optional>,
-      "tp_execution": "market" | "limit",
-      "sl_execution": "market" | "limit",
-      "reason": "<string explaining primary signals>",
-      "trading_strategy": "<string covering thesis, risk controls, and exit plan>"
-    }}
-  ]
-}}
+OUTPUT_FORMAT_COMPLETE = """You are a trading decision engine.
+Return EXACTLY one valid JSON object.
+No markdown.
+No explanations.
+No text before or after JSON.
+Schema:
+{
+"decisions": [
+{
+"operation": "buy|sell|hold|close",
+"symbol": "ETH",
+"target_portion_of_balance": number,
+"leverage": integer,
+"max_price": number,
+"min_price": number,
+"time_in_force": "Ioc|Gtc|Alo",
+"take_profit_price": number,
+"stop_loss_price": number,
+"tp_execution": "limit|market",
+"sl_execution": "limit|market",
+"reason": string,
+"trading_strategy": string
+}
+]
+}
 
-CRITICAL OUTPUT REQUIREMENTS:
-- Output MUST be a single, valid JSON object only
-- NO markdown code blocks (no ```json``` wrappers)
-- NO explanatory text before or after the JSON
-- NO comments or additional content outside the JSON object
-- Ensure all JSON fields are properly quoted and formatted
-- Double-check JSON syntax before responding
-
-Example output with multiple simultaneous orders:
-{{
-  "decisions": [
-    {{
-      "operation": "buy",
-      "symbol": "BTC",
-      "target_portion_of_balance": 0.3,
-      "leverage": 3,
-      "max_price": 49500,
-      "time_in_force": "Ioc",
-      "take_profit_price": 52000,
-      "stop_loss_price": 47500,
-      "tp_execution": "limit",
-      "sl_execution": "market",
-      "reason": "Strong bullish momentum with support holding at $48k, RSI recovering from oversold",
-      "trading_strategy": "Opening 3x leveraged long position with 30% balance. Take profit at $52k resistance (+5%), stop loss below $47.5k swing low (-4%). Using IOC for immediate execution."
-    }},
-    {{
-      "operation": "sell",
-      "symbol": "ETH",
-      "target_portion_of_balance": 0.2,
-      "leverage": 2,
-      "min_price": 3125,
-      "reason": "ETH perp funding flipped elevated negative while momentum weakens",
-      "trading_strategy": "Initiating small short hedge until ETH regains strength vs BTC pair. Stop if ETH closes back above $3.2k structural pivot."
-    }}
-  ]
-}}
-
-FIELD TYPE REQUIREMENTS:
-- decisions: array (one entry per supported symbol; include HOLD entries with zero allocation when you choose not to act)
-- operation: string ("buy" for long, "sell" for short, "hold", or "close")
-- symbol: string (exactly one of: __SYMBOL_SET__)
-- target_portion_of_balance: number (float between 0.1 and 1.0)
-- leverage: integer (between 1 and __MAX_LEVERAGE__, REQUIRED field)
-- max_price: number (required for "buy" operations and closing SHORT positions. This is the maximum price you are willing to pay.)
-- min_price: number (required for "sell" operations and closing LONG positions. This is the minimum price you are willing to receive.)
-- time_in_force: string (optional, default "Ioc") - Order time in force: "Ioc" (immediate or cancel, taker-focused), "Gtc" (good til canceled, may become maker), "Alo" (add liquidity only, maker-only)
-- take_profit_price: number (optional but recommended, trigger price for profit taking)
-- stop_loss_price: number (optional but recommended, trigger price for loss protection)
-- tp_execution: string (optional, default "limit") - TP execution mode: "limit" (attempts maker with 0.05% offset, may save fees but has fill risk), "market" (immediate execution, guarantees fill)
-- sl_execution: string (optional, default "limit") - SL execution mode: "limit" (may save fees), "market" (guarantees stop loss execution)
-- reason: string explaining the key catalyst, risk, or signal (no strict length limit, but stay focused)
-- trading_strategy: string covering entry thesis, leverage reasoning, liquidation awareness, and exit plan
-
-FIELD CLASSIFICATION:
-- ALWAYS REQUIRED: operation, symbol, reason, trading_strategy
-- REQUIRED FOR buy/sell: target_portion_of_balance, leverage, max_price (buy) or min_price (sell)
-- REQUIRED FOR close: target_portion_of_balance, max_price (close short) or min_price (close long)
-- OPTIONAL WITH DEFAULTS: time_in_force (default "Ioc"), tp_execution (default "limit"), sl_execution (default "limit")
-- OPTIONAL BUT RECOMMENDED: take_profit_price, stop_loss_price
-
-FIELD DEPENDENCIES:
-- tp_execution only applies when take_profit_price is set (ignored otherwise)
-- sl_execution only applies when stop_loss_price is set (ignored otherwise)"""
+Rules:
+Always include exactly 1 decision for ETH.
+Required fields for ALL: operation, symbol, leverage, reason, trading_strategy.
+For buy → require: target_portion_of_balance, leverage, max_price.
+For sell → require: target_portion_of_balance, leverage, min_price.
+For close long → require: target_portion_of_balance, min_price.
+For close short → require: target_portion_of_balance, max_price.
+For hold → set target_portion_of_balance = 0.1 and leverage = 1.
+Numbers only (no strings).
+No null fields.
+Omit unused optional fields.
+Output must be valid JSON parsable by JSON.parse()."""
 
 
 DECISION_TASK_TEXT = (
