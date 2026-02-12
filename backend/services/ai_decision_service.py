@@ -31,7 +31,6 @@ DEMO_API_KEYS = {
     None
 }
 
-
 SUPPORTED_SYMBOLS: Dict[str, str] = {
     "BTC": "Bitcoin",
     "ETH": "Ethereum",
