@@ -1836,7 +1836,7 @@ def call_ai_for_decision(
                 raw_content = message.get("content")
 
             text_content = _extract_text_from_message(raw_content)
-
+            print(f"Failed to log full AI output: {text_content}")
             if not text_content and reasoning_text:
                 # Some providers keep reasoning separately even on normal completion
                 text_content = reasoning_text
@@ -1849,8 +1849,10 @@ def call_ai_for_decision(
                 logger.info("=== AI Output: Full Content ===\n%s", text_content)
                 if api_reasoning_content and api_reasoning_content.strip():
                     logger.info("=== AI Output: Full Reasoning ===\n%s", api_reasoning_content)
+                    print("=== AI Output: Full Reasoning ===\n%s", api_reasoning_content)
             except Exception as e:
                 logger.warning(f"Failed to log full AI output: {e}")
+                print(f"Failed to log full AI output: {e}")
 
             if not text_content:
                 logger.error(
