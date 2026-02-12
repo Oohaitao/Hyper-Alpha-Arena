@@ -1484,8 +1484,20 @@ def call_ai_for_decision(
 
     # Market Regime variables are now generated inside _build_prompt_context
 
+    def _escape_output_format_block(text: str) -> str:
+        try:
+            if "=== OUTPUT FORMAT ===" in text and "{output_format}" not in text:
+                parts = text.split("=== OUTPUT FORMAT ===", 1)
+                before, after = parts[0], parts[1]
+                escaped_after = after.replace("{", "{{").replace("}", "}}")
+                return before + "=== OUTPUT FORMAT ===" + escaped_after
+        except Exception:
+            pass
+        return text
+
     try:
-        prompt = template.template_text.format_map(SafeDict(context))
+        sanitized_template = _escape_output_format_block(template.template_text or "")
+        prompt = sanitized_template.format_map(SafeDict(context))
     except Exception as exc:  # pragma: no cover - fallback rendering
         logger.error("Failed to render prompt template '%s': %s", template.key, exc)
         prompt = template.template_text
