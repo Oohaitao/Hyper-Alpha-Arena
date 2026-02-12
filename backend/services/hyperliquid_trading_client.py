@@ -810,7 +810,6 @@ class HyperliquidTradingClient:
         - Holding duration
         - Realized PnL
         - Direction (long/short)
-
         Args:
             db: Database session (for environment validation)
             limit: Maximum number of closed trades to return (default 5)
