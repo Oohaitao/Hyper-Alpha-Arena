@@ -774,6 +774,11 @@ def _build_prompt_context(
     # ============================================================================
     # RECENT TRADES HISTORY SUMMARY
     # ============================================================================
+    # Initialize performance summary variables with defaults; will be overridden if trades found
+    last_20_pnl_summary = "N/A"
+    consecutive_losses_value = "N/A"
+    recent_win_rate_value = "N/A"
+    last_trade_reason = "N/A"
     # Build recent closed trades summary to help AI understand trading patterns
     # and avoid flip-flop behavior (rapid position reversals)
     recent_trades_summary = "No recent trade history available"
@@ -856,6 +861,48 @@ def _build_prompt_context(
                             last_20_pnl_summary = f"+${last20_total:,.2f}" if last20_total >= 0 else f"-${abs(last20_total):,.2f}"
                         consecutive_losses_value = str(cons_losses if recent_trades else "N/A")
                         recent_win_rate_value = f"{win_rate20:.2f}" if win_rate20 is not None else "N/A"
+
+                    # Dynamic performance variables: parse template for requested N and compute
+                    requested_pnl_ns = {5, 20}
+                    requested_winrate_ns = {5, 20}
+                    try:
+                        if template_text:
+                            import re as _re
+                            for n in _re.findall(r"\{last_(\d+)_pnl\}", template_text):
+                                try:
+                                    requested_pnl_ns.add(int(n))
+                                except Exception:
+                                    pass
+                            for n in _re.findall(r"\{recent_win_rate_(\d+)\}", template_text):
+                                try:
+                                    requested_winrate_ns.add(int(n))
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+
+                    perf_context = {}
+                    # Compute last_N_pnl strings
+                    for n in sorted(requested_pnl_ns):
+                        lastn = recent_trades[:n]
+                        totaln = sum(float(t.get('realized_pnl', 0) or 0) for t in lastn) if lastn else None
+                        pnl_strn = (
+                            f"+${totaln:,.2f}" if (totaln is not None and totaln >= 0)
+                            else (f"-${abs(totaln):,.2f}" if totaln is not None else "N/A")
+                        )
+                        perf_context[f"last_{n}_pnl"] = pnl_strn
+                    # Compute recent_win_rate_N numeric strings (without %)
+                    for n in sorted(requested_winrate_ns):
+                        lastn = recent_trades[:n]
+                        totaln = len(lastn)
+                        winsn = sum(1 for t in lastn if float(t.get('realized_pnl', 0) or 0) > 0)
+                        win_rate_n = (winsn / totaln * 100) if totaln > 0 else None
+                        perf_context[f"recent_win_rate_{n}"] = f"{win_rate_n:.2f}" if win_rate_n is not None else "N/A"
+
+                    # Provide common aliases for convenience
+                    perf_context.setdefault("last_5_pnl", last5_str)
+                    perf_context.setdefault("last_20_pnl", last_20_pnl_summary)
+
                         trade_lines.append("")
                         trade_lines.append("Recent Performance Summary:")
                         trade_lines.append(f"- Last 5 P&L: {last5_str}")
@@ -913,11 +960,6 @@ def _build_prompt_context(
     # IMPORTANT: This processing MUST stay inside _build_prompt_context to ensure
     # preview and AI decision execution use the same logic.
     kline_context = {}
-    # Defaults for performance variables injected into prompt
-    last_20_pnl_summary = "N/A"
-    consecutive_losses_value = "N/A"
-    recent_win_rate_value = "N/A"
-    last_trade_reason = "N/A"
     if template_text:
         try:
             from database.connection import SessionLocal
@@ -1209,6 +1251,8 @@ Regime Types:
         "last_trade_reason": last_trade_reason,
         # Trigger context (signal or scheduled trigger information)
         "trigger_context": trigger_context_text,
+        # Dynamic performance variables: last_N_pnl, recent_win_rate_N
+        **(perf_context if 'perf_context' in locals() else {}),
         # K-line and technical indicator variables (dynamically generated)
         **kline_context,  # Merge K-line/indicator variables like {BTC_klines_15m}, {BTC_MACD_15m}, etc.
         # Market Regime classification variables (multi-timeframe)
