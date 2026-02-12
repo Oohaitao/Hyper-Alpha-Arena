@@ -917,6 +917,7 @@ def _build_prompt_context(
     last_20_pnl_summary = "N/A"
     consecutive_losses_value = "N/A"
     recent_win_rate_value = "N/A"
+    last_trade_reason = "N/A"
     if template_text:
         try:
             from database.connection import SessionLocal
@@ -929,6 +930,21 @@ def _build_prompt_context(
                 logger.debug(f"Built K-line context with {len(kline_context)} variables")
         except Exception as e:
             logger.warning(f"Failed to build K-line context: {e}", exc_info=True)
+
+    if db:
+        try:
+            from database.models import AIDecisionLog
+            q = db.query(AIDecisionLog).filter(
+                AIDecisionLog.account_id == account.id,
+                AIDecisionLog.executed == "true"
+            )
+            if environment in ("testnet", "mainnet"):
+                q = q.filter(AIDecisionLog.hyperliquid_environment == environment)
+            last = q.order_by(AIDecisionLog.decision_time.desc()).first()
+            if last and last.reason:
+                last_trade_reason = last.reason
+        except Exception as e:
+            logger.warning(f"Failed to fetch last trade reason: {e}")
 
     # ============================================================================
     # TRIGGER CONTEXT FORMATTING
@@ -1190,6 +1206,7 @@ Regime Types:
         "last_20_pnl_summary": last_20_pnl_summary,
         "consecutive_losses": consecutive_losses_value,
         "recent_win_rate": recent_win_rate_value,
+        "last_trade_reason": last_trade_reason,
         # Trigger context (signal or scheduled trigger information)
         "trigger_context": trigger_context_text,
         # K-line and technical indicator variables (dynamically generated)
