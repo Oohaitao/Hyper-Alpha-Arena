@@ -799,7 +799,7 @@ class HyperliquidTradingClient:
 
         return earliest_time
 
-    def get_recent_closed_trades(self, db: Session, limit: int = 5) -> List[Dict[str, Any]]:
+    def get_recent_closed_trades(self, db: Session, limit: int = 20) -> List[Dict[str, Any]]:
         """
         Get recent closed trades summary from historical orders
 
