@@ -1845,6 +1845,13 @@ def call_ai_for_decision(
                 text_content = api_reasoning_content
                 logger.info("Using reasoning_content as fallback for empty content (DeepSeek Reasoner)")
 
+            try:
+                logger.info("=== AI Output: Full Content ===\n%s", text_content)
+                if api_reasoning_content and api_reasoning_content.strip():
+                    logger.info("=== AI Output: Full Reasoning ===\n%s", api_reasoning_content)
+            except Exception as e:
+                logger.warning(f"Failed to log full AI output: {e}")
+
             if not text_content:
                 logger.error(
                     "Empty content in AI response: %s",
