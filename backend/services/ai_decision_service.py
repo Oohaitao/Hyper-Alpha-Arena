@@ -832,6 +832,29 @@ def _build_prompt_context(
                             trade_lines.append(
                                 f"- {symbol} {side}: Closed at {close_time} @ ${close_price:,.2f} | P&L: {pnl_str} | {direction}"
                             )
+                        last5 = recent_trades[:5]
+                        last5_total = sum(float(t.get('realized_pnl', 0) or 0) for t in last5) if last5 else None
+                        if last5_total is not None:
+                            last5_str = f"+${last5_total:,.2f}" if last5_total >= 0 else f"-${abs(last5_total):,.2f}"
+                        else:
+                            last5_str = "N/A"
+                        cons_losses = 0
+                        for t in recent_trades:
+                            pnl = float(t.get('realized_pnl', 0) or 0)
+                            if pnl < 0:
+                                cons_losses += 1
+                            else:
+                                break
+                        last20 = recent_trades[:20]
+                        total20 = len(last20)
+                        wins20 = sum(1 for t in last20 if float(t.get('realized_pnl', 0) or 0) > 0)
+                        win_rate20 = (wins20 / total20 * 100) if total20 > 0 else None
+                        win_rate_str = f"{win_rate20:.2f}%" if win_rate20 is not None else "N/A%"
+                        trade_lines.append("")
+                        trade_lines.append("Recent Performance Summary:")
+                        trade_lines.append(f"- Last 5 P&L: {last5_str}")
+                        trade_lines.append(f"- Consecutive Losses: {cons_losses if recent_trades else 'N/A'}")
+                        trade_lines.append(f"- Win Rate (last 20 trades): {win_rate_str}")
                         trades_section = "\n".join(trade_lines)
                     else:
                         trades_section = "Recent closed trades: No recent closed trades found"
