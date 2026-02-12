@@ -810,8 +810,8 @@ def _build_prompt_context(
                         wallet_address=wallet.wallet_address
                     )
 
-                    # Get recent closed trades (last 5)
-                    recent_trades = client.get_recent_closed_trades(db_session, limit=5)
+                    # Get recent closed trades (last 20)
+                    recent_trades = client.get_recent_closed_trades(db_session, limit=20)
 
                     # Get open orders
                     open_orders = client.get_open_orders(db_session)
@@ -819,7 +819,7 @@ def _build_prompt_context(
                     # Build recent trades section
                     trades_section = ""
                     if recent_trades:
-                        trade_lines = ["Recent closed trades (last 5 positions):"]
+                        trade_lines = ["Recent closed trades (last 20 positions):"]
                         for trade in recent_trades:
                             symbol = trade.get('symbol', 'UNKNOWN')
                             side = trade.get('side', 'Unknown')
