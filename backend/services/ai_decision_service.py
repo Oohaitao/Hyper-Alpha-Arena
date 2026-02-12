@@ -898,11 +898,9 @@ def _build_prompt_context(
                         winsn = sum(1 for t in lastn if float(t.get('realized_pnl', 0) or 0) > 0)
                         win_rate_n = (winsn / totaln * 100) if totaln > 0 else None
                         perf_context[f"recent_win_rate_{n}"] = f"{win_rate_n:.2f}" if win_rate_n is not None else "N/A"
-
                     # Provide common aliases for convenience
-                    perf_context.setdefault("last_5_pnl", last5_str)
-                    perf_context.setdefault("last_20_pnl", last_20_pnl_summary)
-
+                        perf_context.setdefault("last_5_pnl", last5_str)
+                        perf_context.setdefault("last_20_pnl", last_20_pnl_summary)
                         trade_lines.append("")
                         trade_lines.append("Recent Performance Summary:")
                         trade_lines.append(f"- Last 5 P&L: {last5_str}")
