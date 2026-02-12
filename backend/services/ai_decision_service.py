@@ -850,6 +850,12 @@ def _build_prompt_context(
                         wins20 = sum(1 for t in last20 if float(t.get('realized_pnl', 0) or 0) > 0)
                         win_rate20 = (wins20 / total20 * 100) if total20 > 0 else None
                         win_rate_str = f"{win_rate20:.2f}%" if win_rate20 is not None else "N/A%"
+                        # Store variables for prompt placeholders
+                        last20_total = sum(float(t.get('realized_pnl', 0) or 0) for t in last20) if last20 else None
+                        if last20_total is not None:
+                            last_20_pnl_summary = f"+${last20_total:,.2f}" if last20_total >= 0 else f"-${abs(last20_total):,.2f}"
+                        consecutive_losses_value = str(cons_losses if recent_trades else "N/A")
+                        recent_win_rate_value = f"{win_rate20:.2f}" if win_rate20 is not None else "N/A"
                         trade_lines.append("")
                         trade_lines.append("Recent Performance Summary:")
                         trade_lines.append(f"- Last 5 P&L: {last5_str}")
@@ -907,6 +913,10 @@ def _build_prompt_context(
     # IMPORTANT: This processing MUST stay inside _build_prompt_context to ensure
     # preview and AI decision execution use the same logic.
     kline_context = {}
+    # Defaults for performance variables injected into prompt
+    last_20_pnl_summary = "N/A"
+    consecutive_losses_value = "N/A"
+    recent_win_rate_value = "N/A"
     if template_text:
         try:
             from database.connection import SessionLocal
@@ -1176,6 +1186,10 @@ Regime Types:
         "positions_detail": positions_detail,
         # Recent trades history (NEW - helps AI understand trading patterns)
         "recent_trades_summary": recent_trades_summary,
+        # Inject performance summary variables for placeholders in prompt
+        "last_20_pnl_summary": last_20_pnl_summary,
+        "consecutive_losses": consecutive_losses_value,
+        "recent_win_rate": recent_win_rate_value,
         # Trigger context (signal or scheduled trigger information)
         "trigger_context": trigger_context_text,
         # K-line and technical indicator variables (dynamically generated)
