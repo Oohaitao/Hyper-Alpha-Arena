@@ -35,5 +35,6 @@ else
     exit 1
 fi
 echo "✅ Git 同步已完成"
-
+chmod -R 777 pri-rebuild.sh
+echo "✅ 脚本添加权限已完成"
 echo -e "\n🎉 应用重建准备完成！可运行 'docker-compose up -d --build' 启动新版本。"
