@@ -778,10 +778,19 @@ def _build_prompt_context(
     last_20_pnl_summary = "N/A"
     consecutive_losses_value = "N/A"
     recent_win_rate_value = "N/A"
-    last_trade_reason = "N/A"
     # Build recent closed trades summary to help AI understand trading patterns
     # and avoid flip-flop behavior (rapid position reversals)
     recent_trades_summary = "No recent trade history available"
+    requested_ai_trade_reason_ns = set()
+    try:
+        if template_text:
+            for n in re.findall(r"\{last_(\d+)_ai_trade_reason\}", template_text):
+                try:
+                    requested_ai_trade_reason_ns.add(int(n))
+                except Exception:
+                    pass
+    except Exception:
+        pass
     if hyperliquid_state and environment in ("testnet", "mainnet"):
         try:
             # Get trading client to fetch recent closed trades (use cached client for performance)
@@ -971,20 +980,74 @@ def _build_prompt_context(
         except Exception as e:
             logger.warning(f"Failed to build K-line context: {e}", exc_info=True)
 
-    if db:
+    ai_trade_reason_context = {}
+    if db and requested_ai_trade_reason_ns:
         try:
-            from database.models import AIDecisionLog
             q = db.query(AIDecisionLog).filter(
                 AIDecisionLog.account_id == account.id,
-                AIDecisionLog.executed == "true"
+                AIDecisionLog.executed == "true",
+                AIDecisionLog.operation.in_(["buy", "sell", "close"]),
             )
             if environment in ("testnet", "mainnet"):
                 q = q.filter(AIDecisionLog.hyperliquid_environment == environment)
-            last = q.order_by(AIDecisionLog.decision_time.desc()).first()
-            if last and last.reason:
-                last_trade_reason = last.reason
+
+            max_n = max(requested_ai_trade_reason_ns)
+            logs = q.order_by(AIDecisionLog.decision_time.desc()).limit(max_n).all()
+
+            def _format_ai_trade_reason_entry(entry: AIDecisionLog) -> str:
+                dt = (
+                    entry.decision_time.isoformat()
+                    if getattr(entry, "decision_time", None) and hasattr(entry.decision_time, "isoformat")
+                    else str(getattr(entry, "decision_time", "N/A"))
+                )
+                op = (entry.operation or "").upper() or "N/A"
+                sym = entry.symbol or "N/A"
+                portion = "N/A"
+                lev = "N/A"
+                max_price = None
+                min_price = None
+
+                try:
+                    if entry.decision_snapshot:
+                        snap = json.loads(entry.decision_snapshot)
+                        portion_val = snap.get("target_portion_of_balance")
+                        if portion_val is not None:
+                            portion = f"{float(portion_val):.4f}"
+                        lev_val = snap.get("leverage")
+                        if lev_val is not None:
+                            lev = str(int(float(lev_val)))
+                        max_price = snap.get("max_price")
+                        min_price = snap.get("min_price")
+                except Exception:
+                    pass
+
+                if portion == "N/A":
+                    try:
+                        portion = f"{float(entry.target_portion):.4f}"
+                    except Exception:
+                        pass
+
+                price_parts = []
+                if max_price is not None:
+                    price_parts.append(f"max_price={max_price}")
+                if min_price is not None:
+                    price_parts.append(f"min_price={min_price}")
+                price_str = f" {' '.join(price_parts)}" if price_parts else ""
+
+                reason = entry.reason or ""
+                return f"{dt} {op} {sym} portion={portion} lev={lev}{price_str} reason={reason}"
+
+            for n in sorted(requested_ai_trade_reason_ns):
+                subset = logs[:n]
+                if not subset:
+                    ai_trade_reason_context[f"last_{n}_ai_trade_reason"] = "N/A"
+                    continue
+                lines = [f"Recent AI executed trade decisions (last {n}):"]
+                for idx, entry in enumerate(subset, start=1):
+                    lines.append(f"{idx}. {_format_ai_trade_reason_entry(entry)}")
+                ai_trade_reason_context[f"last_{n}_ai_trade_reason"] = "\n".join(lines)
         except Exception as e:
-            logger.warning(f"Failed to fetch last trade reason: {e}")
+            logger.warning(f"Failed to fetch last_N AI trade reasons: {e}")
 
     # ============================================================================
     # TRIGGER CONTEXT FORMATTING
@@ -1246,11 +1309,11 @@ Regime Types:
         "last_20_pnl_summary": last_20_pnl_summary,
         "consecutive_losses": consecutive_losses_value,
         "recent_win_rate": recent_win_rate_value,
-        "last_trade_reason": last_trade_reason,
         # Trigger context (signal or scheduled trigger information)
         "trigger_context": trigger_context_text,
         # Dynamic performance variables: last_N_pnl, recent_win_rate_N
         **(perf_context if 'perf_context' in locals() else {}),
+        **ai_trade_reason_context,
         # K-line and technical indicator variables (dynamically generated)
         **kline_context,  # Merge K-line/indicator variables like {BTC_klines_15m}, {BTC_MACD_15m}, etc.
         # Market Regime classification variables (multi-timeframe)
