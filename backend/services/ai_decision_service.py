@@ -782,6 +782,7 @@ def _build_prompt_context(
     # and avoid flip-flop behavior (rapid position reversals)
     recent_trades_summary = "No recent trade history available"
     requested_ai_trade_reason_ns = set()
+    requested_ai_trade_reason_by_symbol = {}
     try:
         if template_text:
             for n in re.findall(r"\{last_(\d+)_ai_trade_reason\}", template_text):
@@ -789,6 +790,14 @@ def _build_prompt_context(
                     requested_ai_trade_reason_ns.add(int(n))
                 except Exception:
                     pass
+            for n, sym in re.findall(r"\{last_(\d+)_ai_trade_reason_([A-Z0-9]+)\}", template_text):
+                try:
+                    n_int = int(n)
+                except Exception:
+                    continue
+                sym_upper = str(sym).upper()
+                if sym_upper:
+                    requested_ai_trade_reason_by_symbol.setdefault(sym_upper, set()).add(n_int)
     except Exception:
         pass
     if hyperliquid_state and environment in ("testnet", "mainnet"):
@@ -981,71 +990,55 @@ def _build_prompt_context(
             logger.warning(f"Failed to build K-line context: {e}", exc_info=True)
 
     ai_trade_reason_context = {}
-    if db and requested_ai_trade_reason_ns:
+    if db and (requested_ai_trade_reason_ns or requested_ai_trade_reason_by_symbol):
         try:
-            q = db.query(AIDecisionLog).filter(
-                AIDecisionLog.account_id == account.id,
-                AIDecisionLog.executed == "true",
-                AIDecisionLog.operation.in_(["buy", "sell", "close"]),
-            )
-            if environment in ("testnet", "mainnet"):
-                q = q.filter(AIDecisionLog.hyperliquid_environment == environment)
-
-            max_n = max(requested_ai_trade_reason_ns)
-            logs = q.order_by(AIDecisionLog.decision_time.desc()).limit(max_n).all()
-
-            def _format_ai_trade_reason_entry(entry: AIDecisionLog) -> str:
-                dt = (
-                    entry.decision_time.isoformat()
-                    if getattr(entry, "decision_time", None) and hasattr(entry.decision_time, "isoformat")
-                    else str(getattr(entry, "decision_time", "N/A"))
-                )
-                op = (entry.operation or "").upper() or "N/A"
-                sym = entry.symbol or "N/A"
-                portion = "N/A"
-                lev = "N/A"
-                max_price = None
-                min_price = None
-
-                try:
-                    if entry.decision_snapshot:
-                        snap = json.loads(entry.decision_snapshot)
-                        portion_val = snap.get("target_portion_of_balance")
-                        if portion_val is not None:
-                            portion = f"{float(portion_val):.4f}"
-                        lev_val = snap.get("leverage")
-                        if lev_val is not None:
-                            lev = str(int(float(lev_val)))
-                        max_price = snap.get("max_price")
-                        min_price = snap.get("min_price")
-                except Exception:
-                    pass
-
-                if portion == "N/A":
+            def _format_decision_time(value: Any) -> str:
+                if isinstance(value, datetime):
                     try:
-                        portion = f"{float(entry.target_portion):.4f}"
+                        return value.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
                     except Exception:
-                        pass
+                        return value.isoformat()
+                return str(value) if value is not None else "N/A"
 
-                price_parts = []
-                if max_price is not None:
-                    price_parts.append(f"max_price={max_price}")
-                if min_price is not None:
-                    price_parts.append(f"min_price={min_price}")
-                price_str = f" {' '.join(price_parts)}" if price_parts else ""
-
+            def _format_ai_decision_reason_entry(entry: AIDecisionLog) -> str:
+                dt = _format_decision_time(getattr(entry, "decision_time", None))
+                op = (entry.operation or "").lower() or "n/a"
                 reason = entry.reason or ""
-                return f"{dt} {op} {sym} portion={portion} lev={lev}{price_str} reason={reason}"
+                sym = entry.symbol
+                if sym:
+                    return f"decision_time:{dt},symbol:{sym},operation:{op},reason:{reason}"
+                return f"decision_time:{dt},operation:{op},reason:{reason}"
 
-            for n in sorted(requested_ai_trade_reason_ns):
-                subset = logs[:n]
-                if not subset:
-                    ai_trade_reason_context[f"last_{n}_ai_trade_reason"] = "N/A"
+            if requested_ai_trade_reason_ns:
+                q = db.query(AIDecisionLog).filter(AIDecisionLog.account_id == account.id)
+                if environment in ("testnet", "mainnet"):
+                    q = q.filter(AIDecisionLog.hyperliquid_environment == environment)
+                if target_symbol:
+                    q = q.filter(AIDecisionLog.symbol == target_symbol.upper())
+                max_n = max(requested_ai_trade_reason_ns)
+                logs = q.order_by(AIDecisionLog.decision_time.desc()).limit(max_n).all()
+                for n in sorted(requested_ai_trade_reason_ns):
+                    subset = logs[:n]
+                    ai_trade_reason_context[f"last_{n}_ai_trade_reason"] = (
+                        "\n".join(_format_ai_decision_reason_entry(e) for e in subset) if subset else "N/A"
+                    )
+
+            for sym, ns in requested_ai_trade_reason_by_symbol.items():
+                if not ns:
                     continue
-                lines = [f"Recent AI executed trade decisions (last {n}):"]
-                for idx, entry in enumerate(subset, start=1):
-                    lines.append(f"{idx}. {_format_ai_trade_reason_entry(entry)}")
-                ai_trade_reason_context[f"last_{n}_ai_trade_reason"] = "\n".join(lines)
+                q = db.query(AIDecisionLog).filter(
+                    AIDecisionLog.account_id == account.id,
+                    AIDecisionLog.symbol == sym,
+                )
+                if environment in ("testnet", "mainnet"):
+                    q = q.filter(AIDecisionLog.hyperliquid_environment == environment)
+                max_n = max(ns)
+                logs = q.order_by(AIDecisionLog.decision_time.desc()).limit(max_n).all()
+                for n in sorted(ns):
+                    subset = logs[:n]
+                    ai_trade_reason_context[f"last_{n}_ai_trade_reason_{sym}"] = (
+                        "\n".join(_format_ai_decision_reason_entry(e) for e in subset) if subset else "N/A"
+                    )
         except Exception as e:
             logger.warning(f"Failed to fetch last_N AI trade reasons: {e}")
 
