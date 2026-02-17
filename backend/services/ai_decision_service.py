@@ -473,24 +473,12 @@ Schema:
 "stop_loss_price": number,
 "tp_execution": "limit|market",
 "sl_execution": "limit|market",
-"reason": string,
+"reason": "L=LONG_SCORE S=SHORT_SCORE R=regime (T or R) |flow_strength:|persistence:|threshold:|confidence:",
 "trading_strategy": string
 }
 ]
 }
-
-Rules:
-Always include exactly 1 decision for ETH.
-Required fields for ALL: operation, symbol, leverage, reason, trading_strategy.
-For buy → require: target_portion_of_balance, leverage, max_price.
-For sell → require: target_portion_of_balance, leverage, min_price.
-For close long → require: target_portion_of_balance, min_price.
-For close short → require: target_portion_of_balance, max_price.
-For hold → set target_portion_of_balance = 0.1 and leverage = 1.
-Numbers only (no strings).
-No null fields.
-Omit unused optional fields.
-Output must be valid JSON parsable by JSON.parse()."""
+"""
 
 
 DECISION_TASK_TEXT = (
