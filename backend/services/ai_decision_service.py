@@ -1260,6 +1260,7 @@ Regime Types:
         # New Alpha Arena style variables (for Pro prompt)
         "runtime_minutes": runtime_minutes,
         "current_time_utc": current_time_utc,
+        "current_time": current_time_utc,
         "total_return_percent": total_return_percent,
         "available_cash": available_cash,
         "total_account_value": total_account_value,
@@ -1282,6 +1283,7 @@ Regime Types:
         "available_balance": available_balance,
         "used_margin": used_margin,
         "margin_usage_percent": margin_usage_percent,
+        "margin_usage": margin_usage_percent,
         "maintenance_margin": maintenance_margin,
         "positions_detail": positions_detail,
         # Recent trades history (NEW - helps AI understand trading patterns)
@@ -1583,10 +1585,23 @@ def call_ai_for_decision(
 
     try:
         sanitized_template = _escape_output_format_block(template.template_text or "")
-        prompt = sanitized_template.format_map(SafeDict(context))
+        delimiter = "=STATIC_PROMPT="
+        if delimiter in sanitized_template:
+            system_template_text, runtime_template_text = sanitized_template.split(delimiter, 1)
+            system_prompt = system_template_text.strip().format_map(SafeDict(context))
+            user_prompt = runtime_template_text.strip().format_map(SafeDict(context))
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+            prompt = f"{system_prompt}\n\n{user_prompt}"
+        else:
+            prompt = sanitized_template.format_map(SafeDict(context))
+            messages = [{"role": "user", "content": prompt}]
     except Exception as exc:  # pragma: no cover - fallback rendering
         logger.error("Failed to render prompt template '%s': %s", template.key, exc)
         prompt = template.template_text
+        messages = [{"role": "user", "content": prompt}]
 
     logger.debug("Using prompt template '%s' for account %s", template.key, account.id)
 
@@ -1623,12 +1638,7 @@ def call_ai_for_decision(
 
     payload = {
         "model": account.model,
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ],
+        "messages": messages,
     }
 
     # Reasoning models (GPT-5, o1, o3, o4) don't support custom temperature
