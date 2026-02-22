@@ -446,7 +446,7 @@ def analyze_kline_chart(
         }
         if account.model == 'deepseek-v3.2':
             headers.update({
-                "User-Agent": "codex_cli_rs/0.93.0 (haitao-7665685228; x86_64) xterm",
+                "User-Agent": "codex_cli_rs/0.93.0 (Debian 12.0.0; x86_64) xterm",
                 "originator": "codex_cli_rs",
                 "Accept": "text/event-stream",
             })
