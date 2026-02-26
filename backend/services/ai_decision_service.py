@@ -491,7 +491,6 @@ DECISION_TASK_TEXT = (
 )
 
 
-
 def _build_prompt_context(
     account: Account,
     portfolio: Dict[str, Any],
