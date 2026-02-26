@@ -490,7 +490,6 @@ DECISION_TASK_TEXT = (
     "- When data is missing (marked N/A), acknowledge uncertainty before deciding.\n"
 )
 
-
 def _build_prompt_context(
     account: Account,
     portfolio: Dict[str, Any],
