@@ -473,7 +473,7 @@ Schema:
 "stop_loss_price": number,
 "tp_execution": "limit|market",
 "sl_execution": "limit|market",
-"reason": "1. Market State 2. Allowed Direction 3. Entry Type (PROBE / FULL / SCALE / NONE) 4. Entry Reasoning (structure + flow + momentum)5. Stop Logic (structural / ATR / invalidation)6. Target Logic (RR >= 1)7. Position Size % 8. Risk Assessment",
+"reason": "≤120 chars. Format: [State]|[Dir]|E=score/th|Act=Probe/Full/Add/Hold|Key=signals|SL=type|TP=RR",
 "trading_strategy": string
 }
 ]
