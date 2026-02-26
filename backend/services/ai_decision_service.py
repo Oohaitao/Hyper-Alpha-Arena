@@ -473,7 +473,7 @@ Schema:
 "stop_loss_price": number,
 "tp_execution": "limit|market",
 "sl_execution": "limit|market",
-"reason": "L=LONG_SCORE S=SHORT_SCORE R=regime (T or R) |flow_strength:|persistence:|threshold:|confidence:",
+"reason": "1. Market State 2. Allowed Direction 3. Entry Type (PROBE / FULL / SCALE / NONE) 4. Entry Reasoning (structure + flow + momentum)5. Stop Logic (structural / ATR / invalidation)6. Target Logic (RR >= 1)7. Position Size % 8. Risk Assessment",
 "trading_strategy": string
 }
 ]
